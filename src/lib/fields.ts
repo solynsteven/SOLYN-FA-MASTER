@@ -48,6 +48,12 @@ type Tpl = {
 export const FA_STATUS = ["未着手／未开始", "進行中／进行中", "完了／已完成", "保留／暂缓", "中止／取消"];
 export const DD_STATUS = ["未请求／未依頼", "已请求／依頼済", "部分接收／一部受領", "已接收／受領済", "不适用／該当なし"];
 
+export const DD_CATEGORIES = [
+  "1. 公司基本·组织\n1. 会社基礎・組織", "2. 财务·会计\n2. 財務・会計", "3. 事业·营业\n3. 事業・営業", "4. 资产·不动产\n4. 資産・不動産",
+  "5. 人事·劳务\n5. 人事・労務", "6. 法务·合规\n6. 法務・コンプライアンス", "7. IT·系统\n7. IT・システム", "8. 交易专用\n8. 本件固有（ディール専用）", "9. 出租车业专项\n9. タクシー事業固有",
+];
+export const DD_CAT_CODES = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"];
+
 export const DEFAULT_FIELDS: Record<TrackerModuleKey, Tpl[]> = {
   fa: [
     { key: "code", label: "任务编号", type: "text", role: "code", width: 96, required: true, aliases: ["No.", "No", "编号", "タスクNo."] },
@@ -73,12 +79,12 @@ export const DEFAULT_FIELDS: Record<TrackerModuleKey, Tpl[]> = {
     { key: "ref_docs", label: "関連資料No.", type: "text", width: 90, aliases: ["関連\n資料No.", "相关资料No."] },
   ],
   dd: [
-    { key: "no", label: "No.", type: "number", role: "code", width: 64, required: true, aliases: ["No", "编号"] },
-    { key: "prefix_code", label: "材料前缀编码", type: "text", formula: "dd_prefix", width: 104 },
-    { key: "category", label: "大分类／大分類", type: "select", role: "category", width: 150, aliases: ["大分类", "大分類"],
-      options: ["1. 公司基本·组织\n1. 会社基礎・組織", "2. 财务·会计\n2. 財務・会計", "3. 事业·营业\n3. 事業・営業", "4. 资产·不动产\n4. 資産・不動産", "5. 人事·劳务\n5. 人事・労務", "6. 法务·合规\n6. 法務・コンプライアンス", "7. IT·系统\n7. IT・システム", "8. 交易专用\n8. 本件固有（ディール専用）", "9. 出租车业专项\n9. タクシー事業固有"] },
-    { key: "major_code", label: "大类编码", type: "text", width: 80 },
-    { key: "minor_code", label: "中类编码", type: "text", width: 80 },
+    { key: "prefix_code", label: "材料前缀编码", type: "text", role: "code", formula: "dd_code", width: 130, required: true, aliases: ["前缀编码", "材料编码"] },
+    { key: "cat_code", label: "分类编码", type: "select", width: 76, required: true, options: DD_CAT_CODES, aliases: ["分类代码"] },
+    { key: "category", label: "材料分类名称", type: "select", role: "category", width: 150, aliases: ["大分类／大分類", "大分类", "大分類", "分类名称"], options: DD_CATEGORIES },
+    { key: "major_code", label: "大类代码", type: "text", width: 72, required: true, aliases: ["大类编码"] },
+    { key: "minor_code", label: "中类代码", type: "text", width: 72, required: true, aliases: ["中类编码"] },
+    { key: "seq", label: "顺序码", type: "number", width: 64, aliases: ["顺序号", "序号"] },
     { key: "item", label: "资料名称／資料名", type: "longtext", role: "title", required: true, width: 360, aliases: ["资料名称", "資料名"] },
     { key: "period", label: "对象期间／対象期間", type: "text", width: 130, aliases: ["对象期间", "対象期間"] },
     { key: "necessity", label: "必要度", type: "select", role: "priority", options: ["必须／必須", "适用时／該当時", "可选／任意"], width: 110 },

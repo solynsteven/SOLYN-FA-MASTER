@@ -47,7 +47,8 @@ export async function previewImport(projectId: string, moduleKey: string, fd: Fo
         warnings.push(`Claude 字段识别未成功（${e instanceof Error ? e.message.slice(0, 80) : "未知错误"}），未匹配列将被忽略`);
       }
     }
-    if (!fields.some((f) => f.role === "code") || !columns.some((c) => c.fieldKey && fields.find((f) => f.key === c.fieldKey)?.role === "code")) {
+    const codeFld = fields.find((f) => f.role === "code");
+    if (!codeFld || (!codeFld.formula && !columns.some((c) => c.fieldKey === codeFld.key))) {
       throw new Error("未找到「编号」列（字段角色 = 编号），无法与已有记录比对");
     }
     const meta = readMeta(ws, headerRow, skill);

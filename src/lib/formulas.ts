@@ -19,7 +19,8 @@ export function diffDays(a: string, b: string) {
 const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 
-export const FORMULAS: Record<string, { label: string; desc: string; type: "date" | "number" | "text"; calc: (d: Data, c: FormulaCtx) => unknown }> = {
+/** stored = true：写入时计算并存库（可作为匹配键 / 排序索引），读取时同样重算保持一致 */
+export const FORMULAS: Record<string, { label: string; desc: string; type: "date" | "number" | "text"; stored?: boolean; calc: (d: Data, c: FormulaCtx) => unknown }> = {
   fa_plan_start: {
     label: "计划开始日",
     desc: "= 项目开始日 + 開始D+（天）。修改项目开始日，全部计划日期自动平移",
@@ -58,6 +59,17 @@ export const FORMULAS: Record<string, { label: string; desc: string; type: "date
     type: "text",
     calc: (d) => parentCodeOf(d.code),
   },
+  dd_code: {
+    label: "材料前缀编码",
+    desc: "= 分类编码-大类代码-中类代码-顺序码（两位），如 S1-Bas-Adm-01；顺序码留空时自动取同组下一个号",
+    type: "text",
+    stored: true,
+    calc: (d) => {
+      const n = num(d.seq);
+      if (!d.cat_code || !d.major_code || !d.minor_code || n === null) return null;
+      return `${String(d.cat_code).trim()}-${String(d.major_code).trim()}-${String(d.minor_code).trim()}-${String(n).padStart(2, "0")}`;
+    },
+  },
   dd_prefix: {
     label: "材料前缀编码",
     desc: "= 大类编码-中类编码",
@@ -65,6 +77,16 @@ export const FORMULAS: Record<string, { label: string; desc: string; type: "date
     calc: (d) => (d.major_code || d.minor_code ? `${d.major_code ?? ""}-${d.minor_code ?? ""}` : null),
   },
 };
+
+/** 仅计算“存库型”公式（写入前调用） */
+export function applyStoredFormulas(fields: { key: string; formula: string | null }[], data: Data): Data {
+  const out = { ...data };
+  for (const f of fields) {
+    const def = f.formula ? FORMULAS[f.formula] : undefined;
+    if (def?.stored) out[f.key] = def.calc(out, { today: "" });
+  }
+  return out;
+}
 
 /** 按字段顺序依次计算（后面的公式可引用前面公式的结果，如 delay 依赖 plan_end） */
 export function applyFormulas(fields: { key: string; formula: string | null }[], data: Data, ctx: FormulaCtx): Data {

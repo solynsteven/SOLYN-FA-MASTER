@@ -4,6 +4,7 @@ import path from "node:path";
 import type ExcelJS from "exceljs";
 import type { FieldDefinition } from "@/db/schema";
 import { normalizeValue, isEqualValue, displayValue, hasOptions } from "@/lib/fields";
+import { applyStoredFormulas } from "@/lib/formulas";
 import { callClaude, getActiveKey } from "@/lib/anthropic";
 import { cellText, cellValue, normHeader, type Sheet } from "./excel";
 import type { ColumnMap, ImportSkill, ParsedRow } from "./types";
@@ -143,6 +144,7 @@ export function readRows(ws: Sheet, headerRow: number, cols: ColumnMap[], fields
   const warnings: string[] = [];
   const extra: Record<string, Record<string, unknown>> = {};
   let blanks = 0;
+  let prevData: Record<string, unknown> | null = null;
   for (let r = headerRow + 1; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
     const data: Record<string, unknown> = {};
@@ -170,9 +172,12 @@ export function readRows(ws: Sheet, headerRow: number, cols: ColumnMap[], fields
     }
     blanks = 0;
     if (skill.isDataRow && !skill.isDataRow(data)) continue;
+    skill.rowRule?.(data, prevData);
+    Object.assign(data, applyStoredFormulas(fields, data));
+    prevData = data;
     const code = codeF ? String(data[codeF.key] ?? "").trim() : "";
     if (!code) {
-      warnings.push(`第 ${r} 行缺少编号，已跳过`);
+      warnings.push(`第 ${r} 行缺少${codeF?.label ?? "编号"}${codeF?.formula ? "（组成字段不完整）" : ""}，已跳过`);
       continue;
     }
     rows.push({ rowNo: r, code, data });

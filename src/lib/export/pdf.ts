@@ -193,7 +193,7 @@ export async function buildPdf(d: ExportData): Promise<Buffer> {
     const od = d.items.filter((it) => isOverdue(it, dueF, statusF, d.ctx.today)).sort((a, b) => Number(b.data[delayF?.key ?? ""] ?? 0) - Number(a.data[delayF?.key ?? ""] ?? 0));
     section("逾期任务", od.length ? `共 ${od.length} 项，按延迟天数排序` : undefined);
     listTable(od.slice(0, 40), [
-      { h: "No.", w: 52, get: g(codeF) }, { h: "任务", w: 0, get: title1 }, { h: "担当", w: 70, get: g(ownerF) },
+      { h: "任务编号", w: 56, get: g(codeF) }, { h: "任务", w: 0, get: title1 }, { h: "担当", w: 70, get: g(ownerF) },
       { h: "计划完成", w: 62, get: g(dueF) }, { h: "延迟", w: 40, get: (it) => `${it.data[delayF?.key ?? ""] ?? ""} 天`, color: C.alert }, { h: "状态", w: 84, get: g(statusF) },
     ], "当前没有逾期任务。");
     const next = d.items
@@ -202,7 +202,7 @@ export async function buildPdf(d: ExportData): Promise<Buffer> {
       .slice(0, 15);
     section("近期待完成任务", "按计划完成日排序（前 15 项）");
     listTable(next, [
-      { h: "No.", w: 52, get: g(codeF) }, { h: "任务", w: 0, get: title1 }, { h: "担当", w: 70, get: g(ownerF) },
+      { h: "任务编号", w: 56, get: g(codeF) }, { h: "任务", w: 0, get: title1 }, { h: "担当", w: 70, get: g(ownerF) },
       { h: "计划完成", w: 62, get: g(dueF) }, { h: "状态", w: 84, get: g(statusF) },
     ], "没有待完成的任务。");
   } else {
@@ -213,7 +213,7 @@ export async function buildPdf(d: ExportData): Promise<Buffer> {
     });
     section(`尚未接收的${priF ? shortLabel(priF.options[0] ?? "") : ""}材料`, mustOpen.length ? `共 ${mustOpen.length} 项` : undefined);
     listTable(mustOpen.slice(0, 60), [
-      { h: "No.", w: 34, get: g(codeF) }, { h: "分类", w: 84, get: (it) => g(catF)(it).replace(/^\d+\.\s*/, "") }, { h: "资料名称", w: 0, get: title1 },
+      { h: "材料前缀编码", w: 84, get: g(codeF) }, { h: "分类", w: 70, get: (it) => g(catF)(it).replace(/^\d+\.\s*/, "") }, { h: "资料名称", w: 0, get: title1 },
       { h: "状态", w: 90, get: g(statusF) }, { h: "提供者", w: 60, get: g(ownerF) },
     ], "必须材料已全部接收。");
   }

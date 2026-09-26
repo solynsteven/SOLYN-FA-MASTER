@@ -5,7 +5,7 @@ import { trackerItems, trackerItemChanges, users, type FieldDefinition } from "@
 import { normalizeValue, isEqualValue, hasOptions } from "./fields";
 import { listFields } from "./queries";
 import { touchProject } from "./project-service";
-import { applyFormulas } from "./formulas";
+import { applyFormulas, applyStoredFormulas, FORMULAS } from "./formulas";
 import { sortByCode } from "./code-sort";
 import { checkHierarchy, getLevelParents } from "./hierarchy";
 import { projects } from "@/db/schema";
@@ -59,6 +59,43 @@ export function sanitize(fields: FieldDefinition[], raw: Record<string, unknown>
   return out;
 }
 
+/**
+ * 写入前补齐：DD 顺序码留空时取同组（分类编码+大类+中类）下一个号；分类名称按分类编码自动带出；再计算存库型公式
+ */
+export async function fillStored(projectId: string, moduleKey: string, fields: FieldDefinition[], data: Record<string, unknown>, selfId?: string) {
+  const out = { ...data };
+  if (moduleKey === "dd" && fields.some((f) => f.formula === "dd_code")) {
+    if ((out.seq === null || out.seq === undefined || out.seq === "") && out.cat_code && out.major_code && out.minor_code) {
+      const rows = await db
+        .select({ id: trackerItems.id, data: trackerItems.data })
+        .from(trackerItems)
+        .where(and(eq(trackerItems.projectId, projectId), eq(trackerItems.moduleKey, moduleKey), isNull(trackerItems.deletedAt)));
+      const same = rows.filter((r) => r.id !== selfId && r.data.cat_code === out.cat_code && r.data.major_code === out.major_code && r.data.minor_code === out.minor_code);
+      out.seq = Math.max(0, ...same.map((r) => Number(r.data.seq) || 0)) + 1;
+    }
+    const catF = fields.find((f) => f.key === "category");
+    const m = String(out.cat_code ?? "").match(/^S(\d+)$/i);
+    if (catF && !out.category && m) out.category = catF.options.find((o) => o.startsWith(`${m[1]}.`)) ?? null;
+  }
+  return applyStoredFormulas(fields, out);
+}
+
+/** 手工新增/修改：编号（匹配键）必须存在且唯一 */
+export async function assertUniqueCode(projectId: string, moduleKey: string, fields: FieldDefinition[], data: Record<string, unknown>, selfId?: string) {
+  const codeF = fields.find((f) => f.role === "code");
+  if (!codeF) return;
+  const code = String(data[codeF.key] ?? "").trim();
+  if (!code) {
+    if (codeF.formula) throw new Error(`「${codeF.label}」无法生成：${FORMULAS[codeF.formula]?.desc ?? "请补全组成字段"}`);
+    return;
+  }
+  const rows = await db
+    .select({ id: trackerItems.id, data: trackerItems.data })
+    .from(trackerItems)
+    .where(and(eq(trackerItems.projectId, projectId), eq(trackerItems.moduleKey, moduleKey), isNull(trackerItems.deletedAt)));
+  if (rows.some((r) => r.id !== selfId && String(r.data[codeF.key] ?? "").trim() === code)) throw new Error(`${codeF.label} ${code} 已存在`);
+}
+
 /** FA：手工新增/修改时校验任务从属关系（上级任务必须存在且等级匹配） */
 export async function assertHierarchy(projectId: string, moduleKey: string, fields: FieldDefinition[], data: Record<string, unknown>, selfId?: string) {
   if (moduleKey !== "fa") return;
@@ -90,8 +127,11 @@ export async function createItem(
   pre?: { fields: FieldDefinition[]; seq: number },
 ) {
   const fields = pre?.fields ?? (await listFields(projectId, moduleKey));
-  const data = sanitize(fields, raw, { strict: source === "manual", partial: false });
-  if (source === "manual") await assertHierarchy(projectId, moduleKey, fields, data);
+  const data = await fillStored(projectId, moduleKey, fields, sanitize(fields, raw, { strict: source === "manual", partial: false }));
+  if (source === "manual") {
+    await assertUniqueCode(projectId, moduleKey, fields, data);
+    await assertHierarchy(projectId, moduleKey, fields, data);
+  }
   const now = new Date();
   const codeField = fields.find((f) => f.role === "code");
   const fieldUpdatedAt = Object.fromEntries(Object.keys(data).filter((k) => data[k] !== null).map((k) => [k, now.toISOString()]));
@@ -125,6 +165,10 @@ export async function updateItem(
   if (!item || item.deletedAt) throw new Error("记录不存在或已被删除");
   const fields = preFields ?? (await listFields(item.projectId, item.moduleKey));
   const patch = sanitize(fields, raw, { strict: source === "manual", partial: true });
+  // 存库型公式（如 DD 材料前缀编码）随组成字段变化而重算
+  const merged = await fillStored(item.projectId, item.moduleKey, fields, { ...item.data, ...patch }, item.id);
+  for (const f of fields) if (f.formula && !isEqualValue(merged[f.key], item.data[f.key]) && FORMULAS[f.formula]?.stored) patch[f.key] = merged[f.key];
+  for (const k of Object.keys(merged)) if (!(k in patch) && !isEqualValue(merged[k], item.data[k]) && !fields.find((f) => f.key === k)?.formula) patch[k] = merged[k];
   const changes: Record<string, { from: unknown; to: unknown }> = {};
   for (const [k, v] of Object.entries(patch)) {
     if (!isEqualValue(item.data[k], v)) changes[k] = { from: item.data[k] ?? null, to: v };
@@ -132,7 +176,10 @@ export async function updateItem(
   if (!Object.keys(changes).length) return { item, changed: false };
   const now = new Date();
   const data = { ...item.data, ...patch };
-  if (source === "manual") await assertHierarchy(item.projectId, item.moduleKey, fields, data, item.id);
+  if (source === "manual") {
+    await assertUniqueCode(item.projectId, item.moduleKey, fields, data, item.id);
+    await assertHierarchy(item.projectId, item.moduleKey, fields, data, item.id);
+  }
   const fieldUpdatedAt = { ...item.fieldUpdatedAt };
   for (const k of Object.keys(changes)) fieldUpdatedAt[k] = now.toISOString();
   const codeField = fields.find((f) => f.role === "code");
