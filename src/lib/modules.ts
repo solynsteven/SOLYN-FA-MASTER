@@ -16,7 +16,7 @@ export const MODULES: ModuleDef[] = [
   { key: "dd", label: "DD管理", en: "Due Diligence", desc: "尽调材料与信息收集进度跟踪", ready: true, tracker: true },
   { key: "fdd", label: "FDD管理", en: "Financial DD", desc: "财务尽调工作底稿与问题清单", ready: false },
   { key: "qa", label: "Q&A管理", en: "Q&A Log", desc: "买卖双方问答记录与答复跟踪", ready: false },
-  { key: "vdr", label: "VDR", en: "Virtual Data Room", desc: "虚拟数据室文件存储与权限", ready: false },
+  { key: "vdr", label: "VDR", en: "Virtual Data Room", desc: "虚拟数据室：Phase 区、分级权限、访问留痕与分析", ready: true },
 ];
 
 export const TRACKER_MODULES: TrackerModuleKey[] = ["fa", "dd"];

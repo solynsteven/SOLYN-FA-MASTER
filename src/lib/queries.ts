@@ -23,6 +23,7 @@ export async function listProjectMembers(projectId: string) {
     .select({
       userId: users.id, name: users.name, email: users.email, title: users.title,
       isActive: users.isActive, globalRole: users.globalRole, role: projectMembers.role, joinedAt: projectMembers.createdAt,
+      vdrGroup: projectMembers.vdrGroup, organization: projectMembers.organization,
     })
     .from(projectMembers)
     .innerJoin(users, eq(users.id, projectMembers.userId))

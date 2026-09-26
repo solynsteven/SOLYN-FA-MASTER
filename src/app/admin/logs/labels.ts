@@ -15,6 +15,7 @@ const L: Record<string, string> = {
   "member.add": "添加项目成员",
   "member.update": "修改成员角色",
   "member.remove": "移除项目成员",
+  "member.vdr": "修改成员 VDR 权限组 / 机构",
   "field.create": "新增字段",
   "field.update": "编辑字段",
   "field.delete": "删除字段",

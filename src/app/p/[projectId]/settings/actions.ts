@@ -218,3 +218,18 @@ export async function resetFields(projectId: string, moduleKey: string) {
     refresh(projectId);
   }, "已恢复默认字段");
 }
+
+/* ------------------------------- VDR 成员属性 ------------------------------- */
+
+export async function updateMemberVdr(projectId: string, userId: string, input: { group: string | null; organization: string | null }) {
+  return run(async () => {
+    const a = await assertProject(projectId, true);
+    const groups = ["ADM", "SEL", "BID1", "BID2", "EXC", "DD"];
+    if (input.group && !groups.includes(input.group)) throw new Error("未知权限组");
+    await db.update(projectMembers).set({
+      vdrGroup: (input.group || null) as (typeof projectMembers.$inferInsert)["vdrGroup"], organization: input.organization?.trim() || null,
+    }).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
+    await audit(a.user.id, "member.vdr", { userId, ...input }, projectId);
+    refresh(projectId);
+  }, "已保存");
+}

@@ -2,7 +2,7 @@
 
 Solyn Advisory 投融资并购 FA 工作平台。Next.js 15（App Router）+ Drizzle ORM + Neon Postgres，部署于 Vercel。
 
-## 当前版本（v0.2）
+## 当前版本（v0.6）
 
 | 模块 | 状态 |
 |---|---|
@@ -17,7 +17,8 @@ Solyn Advisory 投融资并购 FA 工作平台。Next.js 15（App Router）+ Dri
 | Excel 导入 Skill：solyn-skill-fa-pm-import / solyn-skill-fa-dd-import（差异预览 → 确认写入，合并 / 完全同步） | ✅ |
 | 导出 Excel 跟踪表（含进度汇总、变更记录，可再次导入）/ PDF 完成情况报告 | ✅ |
 | 项目首页 Dashboard：FA（阶段任务数与完成度、延期、3 天内到期、状态占比）/ DD（分类收集情况、提出状态、必要度、必须材料待跟进） | ✅ |
-| FDD、Q&A、VDR | 🗓 规划中（界面已占位） |
+| VDR 虚拟数据室：Phase 区（独立密码、按项目进度开放）、多级目录、权限组 / 用户 × 目录 / 文件四级权限（✕ / V / P / O）、水印在线预览（PDF、图片、Word、Excel）、上传删除日志、回收站、FA 任务编号 / DD 材料编码关联、访问分析与 PDF 报告 | ✅ |
+| FDD、Q&A | 🗓 规划中（界面已占位） |
 
 ## 部署步骤
 
@@ -33,6 +34,8 @@ Solyn Advisory 投融资并购 FA 工作平台。Next.js 15（App Router）+ Dri
    - Build Command 改为：`npm run vercel-build`（每次部署前自动执行数据库迁移）
 4. 部署完成后访问站点，首次会进入 **/setup** 创建第一个全局管理员。
 
+5. **VDR 文件存储（Vercel Blob）**：Vercel 项目 → Storage → Create → **Blob** → Access 选 **Private** → Connect 到本项目（自动注入 `BLOB_READ_WRITE_TOKEN`）→ Redeploy。未配置时本地开发会存到 `.data/vdr`。
+
 > `ENCRYPTION_KEY` 用于加密 API Key，设置后不要更改，否则已保存的 Key 需要重新录入。
 
 ## Excel 导入说明
@@ -43,6 +46,14 @@ Solyn Advisory 投融资并购 FA 工作平台。Next.js 15（App Router）+ Dri
 - 默认空单元格不覆盖网站中已有值；下拉值不在选项中时可自动补充选项。
 - 表头写法与模板不同时：先按字段名 / 别名 / 近似匹配，仍无法识别且已配置 API Key 时调用 Claude 映射。
 - 导出的 Excel 可直接再次导入（往返一致）。
+
+## VDR 使用说明
+
+- **成员设置**：项目管理 → 成员，为每个成员选择 VDR 权限组（ADM 卖方 FA / SEL 卖方及顾问 / BID1 / BID2 / EXC / DD）并填写所属机构；访问分析按「所属机构」对比买家。
+- **Phase 区**：顶层目录，由项目管理员创建；可设独立密码，开放方式为关闭 / 开放 / 按 FA 任务（指定任务编号开始或完成后自动开放）。
+- **权限**：就近规则优先——文件（用户 > 权限组）→ 所在目录逐级向上 → 默认（ADM = O，其余 = ✕）。✕ 不可见、V 仅在线查看、P 可打印、O 可下载原件；文件名按权限着色。管理员可用「以权限组视角预览」检查效果。
+- **删除与恢复**：VDR 中删除为软删除，在 项目管理 → VDR 回收站 恢复或彻底删除；每个目录的上传 / 删除 / 重命名均有带时间戳的操作记录。
+- **访问分析**：VDR → 访问分析，统计 90 天内阅览 / 打印 / 下载，识别被反复查看的文件（同一用户 ≥ 3 次）与突然停止访问的买家（近 3 天 0 次、此前 4–14 天 ≥ 5 次），可导出 PDF 报告。
 
 ## 本地开发
 
@@ -68,6 +79,8 @@ skills/               导入 Skill 说明（SKILL.md，同时作为 Claude 兜�
 src/skills/           导入 Skill 的确定性规则
 src/lib/import        Excel 解析、表头映射、差异计算
 src/lib/export        Excel / PDF 报告生成
+src/lib/vdr           VDR 权限解析、存储、事件日志、访问分析
+src/components/vdr    VDR 界面（目录树、权限矩阵、水印预览器、访问分析）
 assets/fonts          PDF 字体（思源黑体 SC 子集 + Jost，SIL OFL）
 public/brand          品牌 Logo（深色底用 logo-white，浅色底用 logo-dark）
 ```

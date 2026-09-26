@@ -45,3 +45,15 @@ body {
   .th { @apply sticky top-0 z-10 border-b border-line-strong bg-ink-850 px-3 py-2.5 text-left text-2xs font-medium uppercase tracking-wider text-brand-sage; }
   .td { @apply border-b border-line px-3 py-2.5 align-top text-sm text-brand-mist; }
 }
+
+/* ---------------- VDR 阅览器打印控制 ---------------- */
+@media print {
+  body.vdr-viewing > *:not(.vdr-viewer) { display: none !important; }
+  body.vdr-viewing .vdr-noprint { display: none !important; }
+  body.vdr-viewing .vdr-viewer { position: static !important; background: #fff !important; }
+  body.vdr-viewing .vdr-print-area { overflow: visible !important; background: #fff !important; padding: 0 !important; }
+  body.vdr-viewing .vdr-page { box-shadow: none !important; page-break-after: always; margin: 0 auto !important; }
+  body.vdr-viewing .vdr-watermark { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body.vdr-print-deny * { visibility: hidden !important; }
+  body.vdr-print-deny::after { content: "本文件仅限在线阅览，禁止打印。"; visibility: visible; display: block; padding: 40px; font-size: 16px; color: #000; }
+}

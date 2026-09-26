@@ -29,6 +29,13 @@
       "when": 1790392997282,
       "tag": "0003_dd_prefix_code",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790406581329,
+      "tag": "0004_vdr",
+      "breakpoints": true
     }
   ]
 }

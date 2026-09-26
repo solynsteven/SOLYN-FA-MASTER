@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus, Trash2 } from "lucide-react";
 import { Alert, Badge, ConfirmButton, Modal, useAction } from "@/components/ui";
-import { addMember, updateMemberRole, removeMember } from "./actions";
+import { addMember, updateMemberRole, removeMember, updateMemberVdr } from "./actions";
+import { VDR_GROUPS } from "@/lib/vdr/constants";
 import { fmtDate } from "@/lib/format";
 import { genPassword } from "@/app/admin/users/UsersClient";
 
-type M = { userId: string; name: string; email: string; title: string; role: "project_admin" | "member"; isActive: boolean; joinedAt: string };
+type M = { userId: string; name: string; email: string; title: string; role: "project_admin" | "member"; isActive: boolean; joinedAt: string; vdrGroup: string | null; organization: string | null };
 
 export function MembersTab({ projectId, members, meId }: { projectId: string; members: M[]; meId: string }) {
   const router = useRouter();
@@ -26,7 +27,7 @@ export function MembersTab({ projectId, members, meId }: { projectId: string; me
       <Alert>{a.error}</Alert>
       <div className="card overflow-hidden">
         <table className="w-full">
-          <thead><tr><th className="th">姓名</th><th className="th">邮箱</th><th className="th w-44">项目角色</th><th className="th w-24">账号</th><th className="th w-32">加入日期</th><th className="th w-16" /></tr></thead>
+          <thead><tr><th className="th">姓名</th><th className="th">邮箱</th><th className="th w-40">项目角色</th><th className="th w-44">VDR 权限组</th><th className="th w-44">所属机构</th><th className="th w-20">账号</th><th className="th w-28">加入日期</th><th className="th w-16" /></tr></thead>
           <tbody>
             {members.map((m) => (
               <tr key={m.userId} className="hover:bg-ink-850/60">
@@ -42,6 +43,26 @@ export function MembersTab({ projectId, members, meId }: { projectId: string; me
                     <option value="member">项目用户</option>
                     <option value="project_admin">项目管理员</option>
                   </select>
+                </td>
+                <td className="td">
+                  <select
+                    className="input py-1 text-xs"
+                    value={m.vdrGroup ?? ""}
+                    disabled={a.pending}
+                    onChange={(e) => a.exec(() => updateMemberVdr(projectId, m.userId, { group: e.target.value || null, organization: m.organization }), () => router.refresh())}
+                  >
+                    <option value="">未分组</option>
+                    {VDR_GROUPS.map((g) => <option key={g.code} value={g.code}>{g.code} · {g.desc}</option>)}
+                  </select>
+                </td>
+                <td className="td">
+                  <input
+                    className="input py-1 text-xs"
+                    defaultValue={m.organization ?? ""}
+                    placeholder="如 买家A公司"
+                    list="vdr-orgs"
+                    onBlur={(e) => e.target.value !== (m.organization ?? "") && a.exec(() => updateMemberVdr(projectId, m.userId, { group: m.vdrGroup, organization: e.target.value }), () => router.refresh())}
+                  />
                 </td>
                 <td className="td">{m.isActive ? <Badge tone="mid">启用</Badge> : <Badge tone="danger">停用</Badge>}</td>
                 <td className="td font-num text-xs text-brand-sage">{fmtDate(m.joinedAt)}</td>
@@ -60,10 +81,12 @@ export function MembersTab({ projectId, members, meId }: { projectId: string; me
                 </td>
               </tr>
             ))}
-            {members.length === 0 && <tr><td colSpan={6} className="td py-10 text-center text-brand-sage">尚未添加成员</td></tr>}
+            {members.length === 0 && <tr><td colSpan={8} className="td py-10 text-center text-brand-sage">尚未添加成员</td></tr>}
           </tbody>
         </table>
       </div>
+      <datalist id="vdr-orgs">{[...new Set(members.map((m) => m.organization).filter(Boolean))].map((o) => <option key={o!} value={o!} />)}</datalist>
+      <p className="mt-2 text-2xs text-brand-sage">VDR 权限组决定成员在数据室中的默认权限；所属机构用于访问分析中“各买家访问强度”的汇总（同一机构的多个账号合并统计）。</p>
       {adding && <AddMemberModal projectId={projectId} onClose={() => setAdding(false)} />}
     </>
   );

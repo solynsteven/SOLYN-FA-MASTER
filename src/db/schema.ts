@@ -46,6 +46,10 @@ export const projectMembers = pgTable(
     projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     role: text("role").$type<"project_admin" | "member">().notNull().default("member"),
+    /** VDR 权限组：ADM / SEL / BID1 / BID2 / EXC / DD */
+    vdrGroup: text("vdr_group").$type<VdrGroup>(),
+    /** 所属机构（如 买家A公司），用于 VDR 访问分析按买家汇总 */
+    organization: text("organization"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.userId] }), index("pm_user_idx").on(t.userId)],
@@ -208,3 +212,108 @@ export type FieldDefinition = typeof fieldDefinitions.$inferSelect;
 export type TrackerItem = typeof trackerItems.$inferSelect;
 export type TrackerItemChange = typeof trackerItemChanges.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;
+
+/* ------------------------------------------------------------------ */
+/*  VDR 虚拟数据室                                                       */
+/* ------------------------------------------------------------------ */
+
+export type VdrGroup = "ADM" | "SEL" | "BID1" | "BID2" | "EXC" | "DD";
+export type VdrLevel = "O" | "P" | "V" | "X";
+
+/** 目录：parent_id 为空且 is_phase = true 的是顶层 Phase 区 */
+export const vdrFolders = pgTable(
+  "vdr_folders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    parentId: uuid("parent_id"),
+    name: text("name").notNull(),
+    isPhase: boolean("is_phase").notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    /** Phase 区密码（bcrypt），为空表示无需密码 */
+    passwordHash: text("password_hash"),
+    /** 修改密码后递增，使已解锁的会话失效 */
+    passwordVersion: integer("password_version").notNull().default(1),
+    /** 开放方式：closed 关闭 / open 开放 / by_task 按 FA 任务进度自动开放 */
+    openMode: text("open_mode").$type<"closed" | "open" | "by_task">().notNull().default("closed"),
+    openTaskCode: text("open_task_code"),
+    openTrigger: text("open_trigger").$type<"started" | "done">().notNull().default("started"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
+    deleteBatch: uuid("delete_batch"),
+  },
+  (t) => [index("vf_project_idx").on(t.projectId), index("vf_parent_idx").on(t.parentId)],
+);
+
+export const vdrFiles = pgTable(
+  "vdr_files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    folderId: uuid("folder_id").notNull().references(() => vdrFolders.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    size: integer("size").notNull().default(0),
+    contentType: text("content_type"),
+    storage: text("storage").$type<"blob" | "local">().notNull(),
+    storageKey: text("storage_key").notNull(), // Blob pathname/URL 或本地相对路径
+    taskCode: text("task_code"), // FA 任务编号（选填）
+    ddCode: text("dd_code"), // DD 材料前缀编码（选填）
+    description: text("description"),
+    uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
+    deleteBatch: uuid("delete_batch"),
+  },
+  (t) => [index("vfile_project_idx").on(t.projectId), index("vfile_folder_idx").on(t.folderId)],
+);
+
+/** 权限：对 目录 / 单文件，按 权限组 / 用户 设置 O·P·V·X；就近生效（文件 > 所在目录 > 上级目录 > Phase） */
+export const vdrPermissions = pgTable(
+  "vdr_permissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    targetType: text("target_type").$type<"folder" | "file">().notNull(),
+    targetId: uuid("target_id").notNull(),
+    subjectType: text("subject_type").$type<"group" | "user">().notNull(),
+    subject: text("subject").notNull(), // 权限组代码或用户 id
+    level: text("level").$type<VdrLevel>().notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("vp_unique").on(t.targetType, t.targetId, t.subjectType, t.subject),
+    index("vp_project_idx").on(t.projectId),
+  ],
+);
+
+/** 事件：上传 / 删除 / 恢复 / 彻底删除 / 阅览 / 打印 / 下载 / 目录与权限变更 / Phase 解锁 */
+export const vdrEvents = pgTable(
+  "vdr_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    fileId: uuid("file_id"),
+    folderId: uuid("folder_id"),
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ve_project_time_idx").on(t.projectId, t.createdAt),
+    index("ve_file_idx").on(t.fileId),
+    index("ve_folder_idx").on(t.folderId),
+  ],
+);
+
+export type VdrFolder = typeof vdrFolders.$inferSelect;
+export type VdrFile = typeof vdrFiles.$inferSelect;
+export type VdrPermission = typeof vdrPermissions.$inferSelect;
