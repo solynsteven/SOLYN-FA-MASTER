@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body {
+  background: #0A1A14;
+  color: #FAF8F4;
+}
+
+body {
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: #3F6E58; color: #FAF8F4; }
+
+/* 细滚动条 */
+* { scrollbar-width: thin; scrollbar-color: rgba(124,154,139,0.35) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: rgba(124,154,139,0.3); border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+@layer components {
+  .eyebrow { @apply text-2xs uppercase tracking-[0.22em] text-brand-sage; }
+  .card { @apply rounded-lg border border-line bg-ink-900 shadow-panel; }
+  .input {
+    @apply w-full rounded-md border border-line-strong bg-ink-950 px-3 py-2 text-sm text-brand-paper
+      placeholder:text-brand-sage/60 outline-none transition
+      focus:border-brand-mid focus:ring-2 focus:ring-brand-mid/30 disabled:opacity-50;
+  }
+  .label { @apply mb-1.5 block text-xs font-medium text-brand-mist/80; }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium transition
+      disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap;
+  }
+  .btn-primary { @apply btn bg-brand-green text-brand-paper hover:bg-brand-mid; }
+  .btn-secondary { @apply btn border border-line-strong bg-ink-850 text-brand-mist hover:bg-ink-700 hover:text-brand-paper; }
+  .btn-ghost { @apply btn text-brand-mist hover:bg-ink-700 hover:text-brand-paper; }
+  .btn-danger { @apply btn border border-danger/40 text-danger hover:bg-danger/10; }
+  .btn-sm { @apply px-2.5 py-1.5 text-xs; }
+  .th { @apply sticky top-0 z-10 border-b border-line-strong bg-ink-850 px-3 py-2.5 text-left text-2xs font-medium uppercase tracking-wider text-brand-sage; }
+  .td { @apply border-b border-line px-3 py-2.5 align-top text-sm text-brand-mist; }
+}
