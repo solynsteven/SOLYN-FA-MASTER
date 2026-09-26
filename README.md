@@ -16,7 +16,8 @@ Solyn Advisory 投融资并购 FA 工作平台。Next.js 15（App Router）+ Dri
 | 计算字段：计划开始/完成日（随项目开始日平移）、延迟天数、材料前缀编码 | ✅ |
 | Excel 导入 Skill：solyn-skill-fa-pm-import / solyn-skill-fa-dd-import（差异预览 → 确认写入，合并 / 完全同步） | ✅ |
 | 导出 Excel 跟踪表（含进度汇总、变更记录，可再次导入）/ PDF 完成情况报告 | ✅ |
-| 项目首页、FDD、Q&A、VDR | 🗓 规划中（界面已占位） |
+| 项目首页 Dashboard：FA（阶段任务数与完成度、延期、3 天内到期、状态占比）/ DD（分类收集情况、提出状态、必要度、必须材料待跟进） | ✅ |
+| FDD、Q&A、VDR | 🗓 规划中（界面已占位） |
 
 ## 部署步骤
 
