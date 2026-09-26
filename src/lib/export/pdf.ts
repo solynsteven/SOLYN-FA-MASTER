@@ -22,7 +22,8 @@ const BOTTOM = A4.h - 50;
 
 export async function buildPdf(d: ExportData): Promise<Buffer> {
   const T = MODULE_TITLE[d.moduleKey];
-  const doc = new PDFDocument({ size: "A4", margin: M, bufferPages: true, info: { Title: `${d.project.name} ${T.report}`, Author: "Solyn Advisory", Creator: "SOLYN FA MASTER" } });
+  // 初始字体直接用内置的 Jost，避免 pdfkit 加载标准字体 Helvetica（Vercel 函数包内可能缺少该文件）
+  const doc = new PDFDocument({ size: "A4", margin: M, bufferPages: true, font: path.join(FONT_DIR, "Jost-Regular.ttf"), info: { Title: `${d.project.name} ${T.report}`, Author: "Solyn Advisory", Creator: "SOLYN FA MASTER" } });
   doc.registerFont("cjk", path.join(FONT_DIR, "NotoSansSC-Regular.otf"));
   doc.registerFont("cjk-m", path.join(FONT_DIR, "NotoSansSC-Medium.otf"));
   doc.registerFont("jost", path.join(FONT_DIR, "Jost-Regular.ttf"));
