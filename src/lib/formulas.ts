@@ -3,6 +3,7 @@
  * 字段定义中 formula = 下列 ID 之一；依赖字段按 key 引用（key 创建后不可修改）。
  */
 import { statusKind } from "./status";
+import { parentCodeOf } from "./hierarchy";
 
 export type FormulaCtx = { startDate?: string | null; today: string };
 type Data = Record<string, unknown>;
@@ -50,6 +51,12 @@ export const FORMULAS: Record<string, { label: string; desc: string; type: "date
       if (k !== "excluded" && c.today > end) return diffDays(c.today, end);
       return 0;
     },
+  },
+  fa_parent_code: {
+    label: "上级任务",
+    desc: "由任务编号推导：P0-01 → P0-00，P0-02.1 → P0-02；阶段任务（P0-00）无上级",
+    type: "text",
+    calc: (d) => parentCodeOf(d.code),
   },
   dd_prefix: {
     label: "材料前缀编码",

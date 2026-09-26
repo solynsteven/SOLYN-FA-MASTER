@@ -7,9 +7,10 @@ import { Alert, Badge, ConfirmButton, Modal, Toggle, useAction } from "@/compone
 import { FIELD_TYPES, FIELD_ROLES, fieldTypeLabel, hasOptions } from "@/lib/fields";
 import type { FieldType, FieldRole } from "@/db/schema";
 import { FORMULAS } from "@/lib/formulas";
+import { getLevelParents } from "@/lib/hierarchy";
 import { createField, updateField, deleteField, reorderFields, resetFields, type FieldInputT } from "./actions";
 
-type F = { id: string; key: string; label: string; type: FieldType; options: string[]; role: FieldRole; required: boolean; showInTable: boolean; width: number; aliases: string[]; formula: string | null };
+type F = { id: string; key: string; label: string; type: FieldType; options: string[]; role: FieldRole; required: boolean; showInTable: boolean; width: number; aliases: string[]; formula: string | null; config: { levelParents?: Record<string, string | null> } };
 
 export function FieldsTab({ projectId, moduleKey, fields: f0, itemCount }: { projectId: string; moduleKey: "fa" | "dd"; fields: F[]; itemCount: number }) {
   const router = useRouter();
@@ -76,6 +77,13 @@ export function FieldsTab({ projectId, moduleKey, fields: f0, itemCount }: { pro
                   <div className="flex max-w-md flex-wrap gap-1">
                     {hasOptions(f.type) ? f.options.map((o) => <Badge key={o} tone="outline">{o}</Badge>) : <span className="text-brand-sage/40">—</span>}
                   </div>
+                  {moduleKey === "fa" && f.role === "priority" && (
+                    <div className="mt-1.5 space-y-0.5 text-2xs text-brand-sage">
+                      {Object.entries(getLevelParents(f.config, f.options)).map(([lv, p]) => (
+                        <div key={lv}>{lv} {p ? <>→ 从属于 <span className="text-brand-mist">{p}</span></> : <span className="text-brand-mist">（顶级）</span>}</div>
+                      ))}
+                    </div>
+                  )}
                 </td>
                 <td className="td">{f.role ? <Badge tone="mid">{roleLabel(f.role)}</Badge> : <span className="text-brand-sage/40">—</span>}</td>
                 <td className="td text-center text-xs">{f.required ? "✓" : ""}</td>
@@ -105,6 +113,7 @@ export function FieldsTab({ projectId, moduleKey, fields: f0, itemCount }: { pro
           f={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
           onSave={(input) => (editing === "new" ? createField(projectId, moduleKey, input) : updateField(projectId, editing.id, input))}
+          moduleKey={moduleKey}
           onSaved={() => router.refresh()}
           itemCount={itemCount}
         />
@@ -118,8 +127,8 @@ export function FieldsTabKeyed(props: Parameters<typeof FieldsTab>[0]) {
   return <FieldsTab key={props.fields.map((f) => f.id + f.label + f.type).join()} {...props} />;
 }
 
-function FieldModal({ f, onClose, onSave, onSaved, itemCount }: {
-  f: F | null; onClose: () => void; itemCount: number;
+function FieldModal({ f, onClose, onSave, onSaved, itemCount, moduleKey }: {
+  f: F | null; onClose: () => void; itemCount: number; moduleKey: "fa" | "dd";
   onSave: (i: FieldInputT) => ReturnType<typeof createField>; onSaved: () => void;
 }) {
   const a = useAction();
@@ -129,6 +138,9 @@ function FieldModal({ f, onClose, onSave, onSaved, itemCount }: {
   });
   const typeChanged = f && f.type !== v.type && itemCount > 0;
   const lines = (s: string) => s.split(/\n|,|，/).map((x) => x.trim()).filter(Boolean);
+  const isLevel = moduleKey === "fa" && v.role === "priority" && hasOptions(v.type);
+  const [lp, setLp] = useState<Record<string, string | null>>(getLevelParents(f?.config, f?.options ?? []));
+  const opts = lines(v.optionsText);
   return (
     <Modal
       open
@@ -143,7 +155,10 @@ function FieldModal({ f, onClose, onSave, onSaved, itemCount }: {
             disabled={a.pending}
             onClick={() =>
               a.exec(
-                () => onSave({ label: v.label, type: v.type, options: lines(v.optionsText), role: v.role, required: v.required, showInTable: v.showInTable, width: Number(v.width), aliases: lines(v.aliasesText) }),
+                () => onSave({
+                  label: v.label, type: v.type, options: lines(v.optionsText), role: v.role, required: v.required, showInTable: v.showInTable, width: Number(v.width), aliases: lines(v.aliasesText),
+                  config: isLevel ? { levelParents: Object.fromEntries(opts.map((o) => [o, lp[o] ?? null])) } : (f?.config ?? {}),
+                }),
                 () => { onClose(); onSaved(); },
               )
             }
@@ -167,6 +182,24 @@ function FieldModal({ f, onClose, onSave, onSaved, itemCount }: {
           <div className="col-span-2">
             <label className="label">下拉选项（每行一个，顺序即排序）</label>
             <textarea className="input min-h-[110px] font-mono text-xs" value={v.optionsText} onChange={(e) => setV({ ...v, optionsText: e.target.value })} placeholder={"未开始\n进行中\n已完成"} />
+          </div>
+        )}
+        {isLevel && opts.length > 0 && (
+          <div className="col-span-2 rounded-md border border-line bg-ink-950/40 p-3">
+            <div className="mb-1 text-xs font-medium text-brand-mist">等级从属关系</div>
+            <p className="mb-2.5 text-2xs leading-4 text-brand-sage">为每个任务等级指定其上级等级。系统据此校验任务编号：如 P0-02.1（二级任务）必须从属于等级为「一级任务」的 P0-02。</p>
+            <div className="space-y-1.5">
+              {opts.map((o) => (
+                <div key={o} className="flex items-center gap-2 text-xs">
+                  <span className="w-28 truncate text-brand-paper">{o}</span>
+                  <span className="text-brand-sage">从属于</span>
+                  <select className="input w-44 py-1 text-xs" value={lp[o] ?? ""} onChange={(e) => setLp({ ...lp, [o]: e.target.value || null })}>
+                    <option value="">（顶级，无上级）</option>
+                    {opts.filter((x) => x !== o).map((x) => <option key={x} value={x}>{x}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         <div>

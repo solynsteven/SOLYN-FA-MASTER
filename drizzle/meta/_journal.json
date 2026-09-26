@@ -15,6 +15,13 @@
       "when": 1790353771604,
       "tag": "0001_formula_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790388729518,
+      "tag": "0002_fa_hierarchy",
+      "breakpoints": true
     }
   ]
 }

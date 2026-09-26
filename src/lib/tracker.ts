@@ -6,6 +6,7 @@ import { normalizeValue, isEqualValue, hasOptions } from "./fields";
 import { listFields } from "./queries";
 import { touchProject } from "./project-service";
 import { applyFormulas } from "./formulas";
+import { checkHierarchy, getLevelParents } from "./hierarchy";
 import { projects } from "@/db/schema";
 import { todayISO } from "./format";
 
@@ -55,6 +56,24 @@ export function sanitize(fields: FieldDefinition[], raw: Record<string, unknown>
   return out;
 }
 
+/** FA：手工新增/修改时校验任务从属关系（上级任务必须存在且等级匹配） */
+export async function assertHierarchy(projectId: string, moduleKey: string, fields: FieldDefinition[], data: Record<string, unknown>, selfId?: string) {
+  if (moduleKey !== "fa") return;
+  const codeF = fields.find((f) => f.role === "code");
+  const levelF = fields.find((f) => f.role === "priority");
+  if (!codeF || !levelF || !levelF.config?.levelParents) return;
+  const rows = await db
+    .select({ id: trackerItems.id, data: trackerItems.data })
+    .from(trackerItems)
+    .where(and(eq(trackerItems.projectId, projectId), eq(trackerItems.moduleKey, moduleKey), isNull(trackerItems.deletedAt)));
+  const code = String(data[codeF.key] ?? "").trim();
+  const dup = rows.find((r) => r.id !== selfId && String(r.data[codeF.key] ?? "").trim() === code);
+  if (code && dup) throw new Error(`任务编号 ${code} 已存在`);
+  const map = new Map(rows.filter((r) => r.id !== selfId).map((r) => [String(r.data[codeF.key] ?? "").trim(), { level: r.data[levelF.key] }]));
+  const issue = checkHierarchy(data[codeF.key], data[levelF.key], getLevelParents(levelF.config, levelF.options), (c) => map.get(c));
+  if (issue) throw new Error(issue);
+}
+
 export async function nextSeq(projectId: string, moduleKey: string) {
   const [r] = await db
     .select({ m: sql<number>`coalesce(max(${trackerItems.seq}), 0)::int` })
@@ -69,6 +88,7 @@ export async function createItem(
 ) {
   const fields = pre?.fields ?? (await listFields(projectId, moduleKey));
   const data = sanitize(fields, raw, { strict: source === "manual", partial: false });
+  if (source === "manual") await assertHierarchy(projectId, moduleKey, fields, data);
   const now = new Date();
   const codeField = fields.find((f) => f.role === "code");
   const fieldUpdatedAt = Object.fromEntries(Object.keys(data).filter((k) => data[k] !== null).map((k) => [k, now.toISOString()]));
@@ -109,6 +129,7 @@ export async function updateItem(
   if (!Object.keys(changes).length) return { item, changed: false };
   const now = new Date();
   const data = { ...item.data, ...patch };
+  if (source === "manual") await assertHierarchy(item.projectId, item.moduleKey, fields, data, item.id);
   const fieldUpdatedAt = { ...item.fieldUpdatedAt };
   for (const k of Object.keys(changes)) fieldUpdatedAt[k] = now.toISOString();
   const codeField = fields.find((f) => f.role === "code");

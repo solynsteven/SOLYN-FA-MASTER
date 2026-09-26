@@ -107,6 +107,7 @@ const fieldSchema = z.object({
   showInTable: z.boolean().default(true),
   width: z.number().int().min(60).max(600).default(160),
   aliases: z.array(z.string().trim().min(1)).default([]),
+  config: z.object({ levelParents: z.record(z.string(), z.string().nullable()).optional() }).default({}),
 });
 export type FieldInputT = z.input<typeof fieldSchema>;
 
@@ -123,11 +124,32 @@ async function clearRole(projectId: string, moduleKey: string, role: FieldRole, 
       exceptId ? sql`${fieldDefinitions.id} <> ${exceptId}` : undefined));
 }
 
+function checkLevelParents(d: { options: string[]; config: { levelParents?: Record<string, string | null> } }) {
+  const lp = d.config.levelParents;
+  if (!lp) return;
+  for (const [lv, parent] of Object.entries(lp)) {
+    if (!d.options.includes(lv)) delete lp[lv];
+    else if (parent && !d.options.includes(parent)) throw new Error(`「${lv}」的上级等级「${parent}」不在选项中`);
+    else if (parent === lv) throw new Error(`「${lv}」不能从属于自己`);
+  }
+  for (const lv of Object.keys(lp)) {
+    const seen = new Set<string>();
+    let cur: string | null | undefined = lv;
+    while (cur) {
+      if (seen.has(cur)) throw new Error("任务等级的从属关系出现循环，请检查");
+      seen.add(cur);
+      cur = lp[cur];
+    }
+  }
+  if (!Object.values(lp).some((v) => v === null) && Object.keys(lp).length) throw new Error("至少需要一个顶级等级（无上级）");
+}
+
 export async function createField(projectId: string, moduleKey: string, input: FieldInputT) {
   return run(async () => {
     const a = await guardField(projectId, moduleKey);
     const d = fieldSchema.parse(input);
     if (hasOptions(d.type as FieldType) && d.options.length === 0) throw new Error("下拉列表字段至少需要一个选项");
+    checkLevelParents(d);
     const existing = await db.select({ key: fieldDefinitions.key, label: fieldDefinitions.label, sortOrder: fieldDefinitions.sortOrder })
       .from(fieldDefinitions).where(and(eq(fieldDefinitions.projectId, projectId), eq(fieldDefinitions.moduleKey, moduleKey)));
     if (existing.some((e) => e.label === d.label)) throw new Error("已存在同名字段");
@@ -149,6 +171,7 @@ export async function updateField(projectId: string, fieldId: string, input: Fie
     const a = await guardField(projectId, f.moduleKey);
     const d = fieldSchema.parse(input);
     if (hasOptions(d.type as FieldType) && d.options.length === 0) throw new Error("下拉列表字段至少需要一个选项");
+    checkLevelParents(d);
     const [dup] = await db.select({ id: fieldDefinitions.id }).from(fieldDefinitions)
       .where(and(eq(fieldDefinitions.projectId, projectId), eq(fieldDefinitions.moduleKey, f.moduleKey), eq(fieldDefinitions.label, d.label), sql`${fieldDefinitions.id} <> ${fieldId}`));
     if (dup) throw new Error("已存在同名字段");

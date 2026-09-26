@@ -36,6 +36,7 @@ export function hasOptions(t: FieldType) {
 type Tpl = {
   key: string; label: string; type: FieldType; role?: FieldRole; options?: string[];
   required?: boolean; width?: number; showInTable?: boolean; formula?: string; aliases?: string[];
+  config?: { levelParents?: Record<string, string | null> };
 };
 
 /**
@@ -49,11 +50,13 @@ export const DD_STATUS = ["未请求／未依頼", "已请求／依頼済", "部
 
 export const DEFAULT_FIELDS: Record<TrackerModuleKey, Tpl[]> = {
   fa: [
-    { key: "code", label: "No.", type: "text", role: "code", width: 90, required: true, aliases: ["No", "编号", "任务编号"] },
+    { key: "code", label: "任务编号", type: "text", role: "code", width: 96, required: true, aliases: ["No.", "No", "编号", "タスクNo."] },
     { key: "phase", label: "Phase", type: "select", options: ["Phase 0", "Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 6", "Phase 7"], width: 90 },
     { key: "stage", label: "阶段／フェーズ", type: "select", role: "category", width: 150, aliases: ["阶段", "フェーズ"],
       options: ["启动·受任\n着手・受任", "准备\n準備", "寻找买家·接触\nマッチング・打診", "意向表明〜基本协议\n意向表明〜基本合意", "尽职调查\nデューデリジェンス", "最终谈判〜签约\n最終交渉〜契約締結", "交割\nクロージング", "交割后·项目收尾\nPMI・案件クローズ"] },
-    { key: "level", label: "任务等级", type: "select", role: "priority", options: ["阶段任务", "一级任务", "二级任务"], width: 96, aliases: ["任务级别", "等级"] },
+    { key: "level", label: "任务等级", type: "select", role: "priority", options: ["阶段任务", "一级任务", "二级任务"], width: 96, aliases: ["任务级别", "等级"],
+      config: { levelParents: { 阶段任务: null, 一级任务: "阶段任务", 二级任务: "一级任务" } } },
+    { key: "parent_code", label: "上级任务", type: "text", formula: "fa_parent_code", width: 96, aliases: ["上级任务编号"] },
     { key: "task", label: "任务／タスク", type: "longtext", role: "title", required: true, width: 380, aliases: ["任务", "タスク"] },
     { key: "owner", label: "担当", type: "text", role: "owner", width: 130, aliases: ["负责方", "担当者", "负责人"] },
     { key: "start_offset", label: "開始 D+", type: "number", width: 76, aliases: ["開始D+", "开始D+", "開始\nD+"] },

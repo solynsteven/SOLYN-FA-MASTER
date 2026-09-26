@@ -29,7 +29,7 @@ export async function seedDefaultFields(projectId: string, moduleKey: TrackerMod
     DEFAULT_FIELDS[moduleKey].map((f, i) => ({
       projectId, moduleKey, key: f.key, label: f.label, type: f.type, role: f.role ?? null,
       options: f.options ?? [], required: f.required ?? false, width: f.width ?? 160, showInTable: f.showInTable ?? true,
-      formula: f.formula ?? null, aliases: f.aliases ?? [],
+      formula: f.formula ?? null, aliases: f.aliases ?? [], config: f.config ?? {},
       sortOrder: (i + 1) * 10,
     })),
   );

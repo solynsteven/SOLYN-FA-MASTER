@@ -11,6 +11,7 @@ import { listFields } from "@/lib/queries";
 import { createItem, updateItem, softDeleteItems, nextSeq } from "@/lib/tracker";
 import { touchProject } from "@/lib/project-service";
 import { slugKey } from "@/lib/fields";
+import { checkHierarchy, getLevelParents } from "@/lib/hierarchy";
 import { IMPORT_SKILLS } from "@/skills";
 import { loadWorkbook } from "@/lib/import/excel";
 import { pickSheet, findHeaderRow, mapColumns, claudeMapColumns, readMeta, readRows, diffRows } from "@/lib/import/engine";
@@ -57,6 +58,21 @@ export async function previewImport(projectId: string, moduleKey: string, fd: Fo
       .select({ id: trackerItems.id, externalKey: trackerItems.externalKey, data: trackerItems.data })
       .from(trackerItems)
       .where(and(eq(trackerItems.projectId, projectId), eq(trackerItems.moduleKey, moduleKey), isNull(trackerItems.deletedAt)));
+    // FA：检查任务从属关系（以文件 + 网站现有记录为准，仅提示不阻止）
+    if (moduleKey === "fa") {
+      const codeF = fields.find((f) => f.role === "code");
+      const levelF = fields.find((f) => f.role === "priority");
+      if (codeF && levelF) {
+        const parents = getLevelParents(levelF.config, levelF.options);
+        const all = new Map<string, { level: unknown }>();
+        for (const e of existing) if (e.externalKey) all.set(e.externalKey, { level: e.data[levelF.key] });
+        for (const r of parsed.rows) all.set(r.code, { level: r.data[levelF.key] ?? all.get(r.code)?.level });
+        for (const r of parsed.rows) {
+          const issue = checkHierarchy(r.code, all.get(r.code)?.level, parents, (c) => all.get(c));
+          if (issue) warnings.push(`第 ${r.rowNo} 行：${issue}`);
+        }
+      }
+    }
     const mappedKeys = new Set(columns.map((c) => c.fieldKey).filter(Boolean) as string[]);
     const diff = diffRows(fields, parsed.rows, existing, { mode, keepExistingOnEmpty, mappedKeys });
 

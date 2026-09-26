@@ -44,7 +44,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
         projectId={projectId}
         moduleKey={tab}
         itemCount={n}
-        fields={fields.map((f) => ({ id: f.id, key: f.key, label: f.label, type: f.type, options: f.options, role: f.role, required: f.required, showInTable: f.showInTable, width: f.width, aliases: f.aliases, formula: f.formula }))}
+        fields={fields.map((f) => ({ id: f.id, key: f.key, label: f.label, type: f.type, options: f.options, role: f.role, required: f.required, showInTable: f.showInTable, width: f.width, aliases: f.aliases, formula: f.formula, config: f.config }))}
       />
     );
   } else if (tab === "modules") {

@@ -71,6 +71,8 @@ export type FieldType =
   | "text" | "longtext" | "number" | "percent" | "date" | "select" | "multiselect" | "boolean" | "user";
 
 /** 字段语义角色：导出 PDF 报告、项目首页统计会按角色找到对应字段 */
+export type FieldConfig = { levelParents?: Record<string, string | null> };
+
 export type ProjectSettings = { faStartDate?: string | null };
 
 export type FieldRole = "code" | "title" | "category" | "priority" | "status" | "owner" | "due_date" | "start_date" | "progress" | null;
@@ -93,6 +95,8 @@ export const fieldDefinitions = pgTable(
     aliases: jsonb("aliases").$type<string[]>().notNull().default([]), // Excel 导入时可匹配的其他表头写法
     /** 计算字段：公式 ID（见 src/lib/formulas.ts）。非空即只读，值在读取时实时计算，不存库 */
     formula: text("formula"),
+    /** 字段级配置，如任务等级的从属关系 { levelParents: { "一级任务": "阶段任务", ... } } */
+    config: jsonb("config").$type<FieldConfig>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

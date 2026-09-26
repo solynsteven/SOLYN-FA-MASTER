@@ -47,8 +47,8 @@ export function Cell({ f, v, overdue, users, depth = 1 }: { f: TField; v: unknow
   if (f.role === "priority") return <Badge tone={priorityTone(v)}>{String(v)}</Badge>;
   if (f.role === "title")
     return (
-      <div style={{ paddingLeft: depth === 2 ? 14 : 0 }} className={`flex gap-1.5 ${depth === 0 ? "font-medium" : ""}`}>
-        {depth === 2 && <span className="text-brand-sage">└</span>}
+      <div style={{ paddingLeft: Math.max(0, depth - 1) * 14 }} className={`flex gap-1.5 ${depth === 0 ? "font-medium" : ""}`}>
+        {depth >= 2 && <span className="text-brand-sage">└</span>}
         <Bilingual text={String(v)} strong clamp />
       </div>
     );

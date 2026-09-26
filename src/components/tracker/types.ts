@@ -3,6 +3,7 @@ import type { FieldType, FieldRole } from "@/db/schema";
 export type TField = {
   id: string; key: string; label: string; type: FieldType; options: string[]; role: FieldRole;
   required: boolean; showInTable: boolean; width: number; formula: string | null;
+  config?: { levelParents?: Record<string, string | null> };
 };
 export type TItem = {
   id: string; seq: number; data: Record<string, unknown>; fieldUpdatedAt: Record<string, string>;

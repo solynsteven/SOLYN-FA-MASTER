@@ -5,6 +5,7 @@ import { statusKind } from "@/lib/status";
 import { trackerSummary, groupStats, fieldByRole, type GroupRow } from "@/lib/tracker-stats";
 import { fmtDateTime } from "@/lib/format";
 import { FORMULAS } from "@/lib/formulas";
+import { getLevelParents, levelDepthMap } from "@/lib/hierarchy";
 import { MODULE_TITLE, type ExportData } from "./data";
 
 // 品牌色（ARGB）
@@ -72,9 +73,11 @@ export async function buildXlsx(d: ExportData, actor: string) {
     lc++;
   }
 
+  const depthMap = levelF ? levelDepthMap(getLevelParents(levelF.config, levelF.options)) : {};
   d.items.forEach((it, idx) => {
     const row = ws.getRow(4 + idx);
-    const header = levelF && /阶段/.test(String(it.data[levelF.key] ?? ""));
+    const depth = levelF ? depthMap[String(it.data[levelF.key] ?? "")] ?? 1 : 1;
+    const header = !!levelF && depth === 0;
     fields.forEach((f, i) => {
       const cell = row.getCell(i + 1);
       const v = it.data[f.key];
@@ -86,7 +89,11 @@ export async function buildXlsx(d: ExportData, actor: string) {
       else if (Array.isArray(v)) cell.value = v.join("、");
       else cell.value = String(v);
       cell.font = { name: FONT, size: 10, bold: !!header, color: { argb: f.formula ? "FF4F5F58" : "FF1B2A24" } };
-      cell.alignment = { vertical: "top", wrapText: f.type === "longtext" || f.type === "select" || f.role === "title", horizontal: f.type === "number" || f.type === "percent" ? "right" : "left" };
+      cell.alignment = {
+        vertical: "top", wrapText: f.type === "longtext" || f.type === "select" || f.role === "title",
+        horizontal: f.type === "number" || f.type === "percent" ? "right" : "left",
+        indent: f.role === "title" && depth > 1 ? (depth - 1) * 2 : undefined,
+      };
       cell.border = border;
       if (f.role === "status" && v) cell.font = { name: FONT, size: 10, bold: true, color: { argb: statusFont[statusKind(v)] } };
       if (f.formula?.includes("delay") && Number(v) > 0) cell.font = { name: FONT, size: 10, bold: true, color: { argb: C.danger } };

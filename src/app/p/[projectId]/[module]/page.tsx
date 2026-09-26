@@ -54,7 +54,7 @@ export default async function ModulePage({ params }: { params: Promise<{ project
         itemLabel={m.item}
         canManage={canManage}
         today={ctx.today}
-        fields={fields.map((f) => ({ id: f.id, key: f.key, label: f.label, type: f.type, options: f.options, role: f.role, required: f.required, showInTable: f.showInTable, width: f.width, formula: f.formula }))}
+        fields={fields.map((f) => ({ id: f.id, key: f.key, label: f.label, type: f.type, options: f.options, role: f.role, required: f.required, showInTable: f.showInTable, width: f.width, formula: f.formula, config: f.config }))}
         startDate={ctx.startDate}
         items={items.map((i) => ({
           id: i.id, seq: i.seq, data: i.data, fieldUpdatedAt: i.fieldUpdatedAt, createdAt: i.createdAt.toISOString(), updatedAt: i.updatedAt.toISOString(),

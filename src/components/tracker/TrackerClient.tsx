@@ -5,11 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus, Search, History, Upload, Download, Columns3, ArrowUp, ArrowDown, Trash2, X, FileSpreadsheet, FileText, Settings2,
+  ChevronRight, ChevronDown, AlertTriangle, ListTree,
 } from "lucide-react";
 import { Alert, ConfirmButton, EmptyState, cn, useAction } from "@/components/ui";
 import { ImportDialog } from "./ImportDialog";
 import { StartDateControl } from "./StartDateControl";
-import { levelDepth } from "./cells";
+import { useHierarchy } from "./useHierarchy";
 import { Cell } from "./cells";
 import { ItemDrawer } from "./ItemDrawer";
 import { trackerSummary, isOverdue as overdueOf } from "@/lib/tracker-stats";
@@ -58,7 +59,10 @@ export function TrackerClient(p: Props) {
   const dueF = fields.find((f) => f.role === "due_date");
   const filterFields = fields.filter((f) => f.type === "select" && (f.role === "category" || f.role === "status" || f.role === "priority")).slice(0, 4);
   const cols = fields.filter((f) => f.showInTable && !hidden.includes(f.key));
-  const levelF = p.moduleKey === "fa" ? fields.find((f) => f.role === "priority") : undefined;
+  const H = useHierarchy(p.moduleKey, fields, items);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const issueCount = H.enabled ? items.filter((i) => H.issueOf(i)).length : 0;
+  const [onlyIssues, setOnlyIssues] = useState(false);
   const hasPlanFormula = fields.some((f) => f.formula === "fa_plan_start" || f.formula === "fa_plan_end");
 
   const isOverdue = (it: TItem) => overdueOf(it, dueF, statusF, today);
@@ -74,6 +78,7 @@ export function TrackerClient(p: Props) {
       r = r.filter((it) => (v === "__empty" ? !it.data[k] : String(it.data[k] ?? "") === v));
     }
     if (onlyOverdue) r = r.filter(isOverdue);
+    if (onlyIssues) r = r.filter((i) => H.issueOf(i));
     if (sort) {
       const f = fields.find((x) => x.key === sort.key);
       r = [...r].sort((a, b) => {
@@ -88,10 +93,14 @@ export function TrackerClient(p: Props) {
     }
     return r;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, q, filters, onlyOverdue, sort, fields]);
+  }, [items, q, filters, onlyOverdue, onlyIssues, sort, fields, H]);
+  // 树形折叠：仅在未筛选、未排序时生效
+  const treeMode = H.enabled && !sort && !q.trim() && !Object.values(filters).some(Boolean) && !onlyOverdue && !onlyIssues;
+  const rows = treeMode && collapsed.size ? view.filter((it) => !H.ancestors(H.codeOf(it)).some((a) => collapsed.has(a))) : view;
+  const parentCodes = H.enabled ? items.map(H.codeOf).filter((c) => H.childrenOf(c).length) : [];
 
   const sum = useMemo(() => trackerSummary(fields, items, today), [fields, items, today]);
-  const activeFilters = Object.values(filters).filter(Boolean).length + (onlyOverdue ? 1 : 0) + (q ? 1 : 0);
+  const activeFilters = Object.values(filters).filter(Boolean).length + (onlyOverdue ? 1 : 0) + (onlyIssues ? 1 : 0) + (q ? 1 : 0);
   const toggleSort = (key: string) =>
     setSort((s) => (s?.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : null));
   const allChecked = view.length > 0 && view.every((i) => selected.has(i.id));
@@ -158,9 +167,21 @@ export function TrackerClient(p: Props) {
             </select>
           ))}
           {activeFilters > 0 && (
-            <button className="btn-ghost btn-sm" onClick={() => { setQ(""); setFilters({}); setOnlyOverdue(false); }}>
+            <button className="btn-ghost btn-sm" onClick={() => { setQ(""); setFilters({}); setOnlyOverdue(false); setOnlyIssues(false); }}>
               <X size={13} />清除筛选
             </button>
+          )}
+          {H.enabled && (
+            <>
+              <button className="btn-ghost btn-sm" disabled={!treeMode} title={treeMode ? "" : "筛选或排序时显示全部任务"} onClick={() => setCollapsed(collapsed.size ? new Set() : new Set(parentCodes))}>
+                <ListTree size={13} />{collapsed.size ? "全部展开" : "全部折叠"}
+              </button>
+              {issueCount > 0 && (
+                <button className={cn("btn-sm btn border", onlyIssues ? "border-warn bg-warn/15 text-warn" : "border-warn/40 text-warn hover:bg-warn/10")} onClick={() => setOnlyIssues((v) => !v)}>
+                  <AlertTriangle size={13} />从属关系待修正 {issueCount}
+                </button>
+              )}
+            </>
           )}
           <div className="ml-auto flex items-center gap-2">
             {selected.size > 0 && canManage && (
@@ -238,9 +259,13 @@ export function TrackerClient(p: Props) {
                 </tr>
               </thead>
               <tbody>
-                {view.map((it) => {
+                {rows.map((it) => {
                   const od = isOverdue(it);
-                  const depth = levelF ? levelDepth(it.data[levelF.key]) : 1;
+                  const depth = H.enabled ? H.depthOf(it) : 1;
+                  const code = H.codeOf(it);
+                  const kids = H.enabled ? H.childrenOf(code).length : 0;
+                  const issue = H.enabled ? H.issueOf(it) : null;
+                  const roll = kids ? H.rollup(code) : null;
                   return (
                     <tr key={it.id} className={cn("group cursor-pointer hover:bg-ink-850/80", depth === 0 && "bg-ink-800/70 [&>td]:border-line-strong")} onClick={() => setOpen(it)}>
                       {canManage && (
@@ -253,10 +278,28 @@ export function TrackerClient(p: Props) {
                           />
                         </td>
                       )}
-                      <td className="td font-num text-xs text-brand-sage">{it.seq}</td>
+                      <td className="td font-num text-xs text-brand-sage" onClick={(e) => { if (kids && treeMode) { e.stopPropagation(); setCollapsed((c) => { const n = new Set(c); if (n.has(code)) n.delete(code); else n.add(code); return n; }); } }}>
+                        <span className="inline-flex items-center gap-0.5">
+                          {kids > 0 && treeMode ? (collapsed.has(code) ? <ChevronRight size={13} className="text-brand-mist" /> : <ChevronDown size={13} className="text-brand-mist" />) : <span className="w-[13px]" />}
+                          {it.seq}
+                        </span>
+                      </td>
                       {cols.map((f) => (
                         <td key={f.key} className="td" style={{ maxWidth: f.width, minWidth: Math.min(f.width, 120) }}>
-                          <Cell f={f} v={it.data[f.key]} users={users} overdue={od && f.role === "due_date"} depth={depth} />
+                          {f.role === "code" && issue ? (
+                            <span className="inline-flex items-center gap-1" title={issue}>
+                              <AlertTriangle size={12} className="shrink-0 text-warn" />
+                              <Cell f={f} v={it.data[f.key]} users={users} depth={depth} />
+                            </span>
+                          ) : (
+                            <Cell f={f} v={it.data[f.key]} users={users} overdue={od && f.role === "due_date"} depth={depth} />
+                          )}
+                          {f.role === "title" && roll && roll.total > 0 && (
+                            <div className="mt-1 text-[10px] text-brand-sage" style={{ paddingLeft: Math.max(0, depth - 1) * 14 + (depth >= 2 ? 18 : 0) }}>
+                              下级 {roll.total} 项 · 已完成 {roll.done}{roll.excluded ? ` · 中止 ${roll.excluded}` : ""}
+                              {collapsed.has(code) && treeMode && <span className="ml-1.5 text-brand-mist/70">（已折叠）</span>}
+                            </div>
+                          )}
                         </td>
                       ))}
                       <td className="td whitespace-nowrap font-num text-xs text-brand-sage">{fmtDateTime(it.updatedAt)}</td>
@@ -272,7 +315,7 @@ export function TrackerClient(p: Props) {
         )}
         {items.length > 0 && (
           <div className="flex items-center justify-between border-t border-line px-4 py-2 text-2xs text-brand-sage">
-            <span>显示 {view.length} / {items.length} 条</span>
+            <span>显示 {rows.length} / {items.length} 条{H.enabled && treeMode ? " · 点击 # 列的箭头折叠 / 展开下级任务" : ""}</span>
             <span>点击任一行查看详情{canManage ? "与编辑" : ""}；每个字段的更新时间在详情中可见</span>
           </div>
         )}
@@ -288,6 +331,8 @@ export function TrackerClient(p: Props) {
           members={p.members}
           canManage={canManage}
           titleLabel={p.itemLabel}
+          hierarchy={H}
+          onOpenItem={(x: TItem) => setOpen(x)}
           onClose={() => setOpen(null)}
         />
       )}
