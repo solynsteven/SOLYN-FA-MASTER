@@ -11,6 +11,7 @@ import { Alert, ConfirmButton, EmptyState, cn, useAction } from "@/components/ui
 import { ImportDialog } from "./ImportDialog";
 import { StartDateControl } from "./StartDateControl";
 import { useHierarchy } from "./useHierarchy";
+import { compareCode, sortByCode } from "@/lib/code-sort";
 import { Cell } from "./cells";
 import { ItemDrawer } from "./ItemDrawer";
 import { trackerSummary, isOverdue as overdueOf } from "@/lib/tracker-stats";
@@ -58,9 +59,25 @@ export function TrackerClient(p: Props) {
   const statusF = fields.find((f) => f.role === "status");
   const dueF = fields.find((f) => f.role === "due_date");
   const filterFields = fields.filter((f) => f.type === "select" && (f.role === "category" || f.role === "status" || f.role === "priority")).slice(0, 4);
-  const cols = fields.filter((f) => f.showInTable && !hidden.includes(f.key));
+  // 任务编号为主索引：固定在第一列（替代 # 序号列），默认按编号自然排序
+  const codeF = fields.find((f) => f.role === "code");
+  const cols = fields.filter((f) => f.showInTable && !hidden.includes(f.key) && f.key !== codeF?.key);
   const H = useHierarchy(p.moduleKey, fields, items);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const collapseKey = `solyn.collapsed.${p.projectId}.${p.moduleKey}`;
+  const [collapsed, setCollapsedRaw] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(collapseKey);
+      if (v) setCollapsedRaw(new Set(JSON.parse(v)));
+    } catch {}
+  }, [collapseKey]);
+  const setCollapsed = (fn: Set<string> | ((c: Set<string>) => Set<string>)) =>
+    setCollapsedRaw((c) => {
+      const n = typeof fn === "function" ? fn(c) : fn;
+      try { localStorage.setItem(collapseKey, JSON.stringify([...n])); } catch {}
+      return n;
+    });
+  const toggleCollapse = (code: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(code)) n.delete(code); else n.add(code); return n; });
   const issueCount = H.enabled ? items.filter((i) => H.issueOf(i)).length : 0;
   const [onlyIssues, setOnlyIssues] = useState(false);
   const hasPlanFormula = fields.some((f) => f.formula === "fa_plan_start" || f.formula === "fa_plan_end");
@@ -68,7 +85,7 @@ export function TrackerClient(p: Props) {
   const isOverdue = (it: TItem) => overdueOf(it, dueF, statusF, today);
 
   const view = useMemo(() => {
-    let r = items;
+    let r = codeF ? sortByCode(items, codeF.key) : items;
     if (q.trim()) {
       const s = q.trim().toLowerCase();
       r = r.filter((it) => Object.values(it.data).some((v) => v !== null && String(Array.isArray(v) ? v.join(" ") : v).toLowerCase().includes(s)));
@@ -84,6 +101,7 @@ export function TrackerClient(p: Props) {
       r = [...r].sort((a, b) => {
         const va = sort.key === "__seq" ? a.seq : sort.key === "__updated" ? a.updatedAt : a.data[sort.key];
         const vb = sort.key === "__seq" ? b.seq : sort.key === "__updated" ? b.updatedAt : b.data[sort.key];
+        if (f?.role === "code") return compareCode(va, vb) * sort.dir;
         if (va == null || va === "") return 1;
         if (vb == null || vb === "") return -1;
         if (f && f.type === "select" && f.options.length) return (f.options.indexOf(String(va)) - f.options.indexOf(String(vb))) * sort.dir;
@@ -200,7 +218,7 @@ export function TrackerClient(p: Props) {
               {colMenu && (
                 <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border border-line-strong bg-ink-850 p-2 shadow-panel" onMouseLeave={() => setColMenu(false)}>
                   <div className="px-1 pb-1.5 text-2xs text-brand-sage">显示的列（仅对本浏览器生效）</div>
-                  {fields.filter((f) => f.showInTable).map((f) => (
+                  {fields.filter((f) => f.showInTable && f.key !== codeF?.key).map((f) => (
                     <label key={f.key} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs text-brand-mist hover:bg-ink-700">
                       <input type="checkbox" className="accent-[#3F6E58]" checked={!hidden.includes(f.key)} onChange={() => saveHidden(hidden.includes(f.key) ? hidden.filter((x) => x !== f.key) : [...hidden, f.key])} />
                       {f.label}
@@ -253,7 +271,11 @@ export function TrackerClient(p: Props) {
                       <input type="checkbox" className="accent-[#3F6E58]" checked={allChecked} onChange={() => setSelected(allChecked ? new Set() : new Set(view.map((i) => i.id)))} />
                     </th>
                   )}
-                  <SortTh label="#" k="__seq" sort={sort} onSort={toggleSort} width={56} />
+                  {codeF ? (
+                    <SortTh label={codeF.label} k={codeF.key} sort={sort} onSort={toggleSort} width={Math.max(codeF.width, H.enabled ? 130 : 80)} sticky={canManage ? 40 : 0} />
+                  ) : (
+                    <SortTh label="#" k="__seq" sort={sort} onSort={toggleSort} width={56} />
+                  )}
                   {cols.map((f) => <SortTh key={f.key} label={f.label} k={f.key} sort={sort} onSort={toggleSort} width={f.width} />)}
                   <SortTh label="最后更新" k="__updated" sort={sort} onSort={toggleSort} width={150} />
                 </tr>
@@ -278,22 +300,34 @@ export function TrackerClient(p: Props) {
                           />
                         </td>
                       )}
-                      <td className="td font-num text-xs text-brand-sage" onClick={(e) => { if (kids && treeMode) { e.stopPropagation(); setCollapsed((c) => { const n = new Set(c); if (n.has(code)) n.delete(code); else n.add(code); return n; }); } }}>
-                        <span className="inline-flex items-center gap-0.5">
-                          {kids > 0 && treeMode ? (collapsed.has(code) ? <ChevronRight size={13} className="text-brand-mist" /> : <ChevronDown size={13} className="text-brand-mist" />) : <span className="w-[13px]" />}
-                          {it.seq}
-                        </span>
-                      </td>
+                      {codeF ? (
+                        <td
+                          className={cn("td sticky z-[5] whitespace-nowrap font-num", depth === 0 ? "bg-[#152f25] group-hover:bg-ink-850" : "bg-ink-900 group-hover:bg-ink-850")}
+                          style={{ left: canManage ? 40 : 0 }}
+                        >
+                          <span className="inline-flex items-center gap-1" style={{ paddingLeft: H.enabled ? depth * 14 : 0 }} title={issue ?? undefined}>
+                            {H.enabled && (kids > 0 ? (
+                              <button
+                                type="button"
+                                disabled={!treeMode}
+                                title={treeMode ? (collapsed.has(code) ? `展开 ${kids} 个下级任务` : `收起 ${kids} 个下级任务`) : "筛选或排序时显示全部任务"}
+                                onClick={(e) => { e.stopPropagation(); toggleCollapse(code); }}
+                                className="-ml-1 rounded p-0.5 text-brand-mist hover:bg-ink-700 hover:text-brand-paper disabled:opacity-40"
+                              >
+                                {treeMode && collapsed.has(code) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                              </button>
+                            ) : <span className="inline-block w-[18px]" />)}
+                            {issue && <AlertTriangle size={12} className="shrink-0 text-warn" />}
+                            <span className={depth === 0 ? "font-medium text-brand-paper" : "text-brand-mist"}>{code || "—"}</span>
+                            {kids > 0 && treeMode && collapsed.has(code) && <span className="rounded bg-ink-700 px-1 text-[10px] text-brand-sage">+{roll?.total ?? kids}</span>}
+                          </span>
+                        </td>
+                      ) : (
+                        <td className="td font-num text-xs text-brand-sage">{it.seq}</td>
+                      )}
                       {cols.map((f) => (
                         <td key={f.key} className="td" style={{ maxWidth: f.width, minWidth: Math.min(f.width, 120) }}>
-                          {f.role === "code" && issue ? (
-                            <span className="inline-flex items-center gap-1" title={issue}>
-                              <AlertTriangle size={12} className="shrink-0 text-warn" />
-                              <Cell f={f} v={it.data[f.key]} users={users} depth={depth} />
-                            </span>
-                          ) : (
-                            <Cell f={f} v={it.data[f.key]} users={users} overdue={od && f.role === "due_date"} depth={depth} />
-                          )}
+                          <Cell f={f} v={it.data[f.key]} users={users} overdue={od && f.role === "due_date"} depth={depth} />
                           {f.role === "title" && roll && roll.total > 0 && (
                             <div className="mt-1 text-[10px] text-brand-sage" style={{ paddingLeft: Math.max(0, depth - 1) * 14 + (depth >= 2 ? 18 : 0) }}>
                               下级 {roll.total} 项 · 已完成 {roll.done}{roll.excluded ? ` · 中止 ${roll.excluded}` : ""}
@@ -315,7 +349,7 @@ export function TrackerClient(p: Props) {
         )}
         {items.length > 0 && (
           <div className="flex items-center justify-between border-t border-line px-4 py-2 text-2xs text-brand-sage">
-            <span>显示 {rows.length} / {items.length} 条{H.enabled && treeMode ? " · 点击 # 列的箭头折叠 / 展开下级任务" : ""}</span>
+            <span>显示 {rows.length} / {items.length} 条{codeF ? ` · 按${codeF.label}排序` : ""}{H.enabled && treeMode ? " · 点击编号前的箭头收起 / 展开下级任务" : ""}</span>
             <span>点击任一行查看详情{canManage ? "与编辑" : ""}；每个字段的更新时间在详情中可见</span>
           </div>
         )}
@@ -353,10 +387,14 @@ function Kpi({ label, value, sub, tone, onClick, active }: { label: string; valu
   );
 }
 
-function SortTh({ label, k, sort, onSort, width }: { label: string; k: string; sort: { key: string; dir: 1 | -1 } | null; onSort: (k: string) => void; width: number }) {
+function SortTh({ label, k, sort, onSort, width, sticky }: { label: string; k: string; sort: { key: string; dir: 1 | -1 } | null; onSort: (k: string) => void; width: number; sticky?: number }) {
   const on = sort?.key === k;
   return (
-    <th className="th cursor-pointer select-none whitespace-nowrap hover:text-brand-mist" style={{ minWidth: Math.min(width, 120), width }} onClick={() => onSort(k)}>
+    <th
+      className={cn("th cursor-pointer select-none whitespace-nowrap hover:text-brand-mist", sticky !== undefined && "z-20")}
+      style={{ minWidth: Math.min(width, 130), width, ...(sticky !== undefined ? { left: sticky } : {}) }}
+      onClick={() => onSort(k)}
+    >
       <span className="inline-flex items-center gap-1">
         {label}
         {on && (sort!.dir === 1 ? <ArrowUp size={11} /> : <ArrowDown size={11} />)}

@@ -6,6 +6,7 @@ import { normalizeValue, isEqualValue, hasOptions } from "./fields";
 import { listFields } from "./queries";
 import { touchProject } from "./project-service";
 import { applyFormulas } from "./formulas";
+import { sortByCode } from "./code-sort";
 import { checkHierarchy, getLevelParents } from "./hierarchy";
 import { projects } from "@/db/schema";
 import { todayISO } from "./format";
@@ -18,7 +19,9 @@ export async function formulaCtx(projectId: string) {
 /** 读取时补齐计算字段（计划日期、延迟天数、前缀编码等） */
 export async function listItemsDerived(projectId: string, moduleKey: string, fields: FieldDefinition[]) {
   const [items, ctx] = await Promise.all([listItems(projectId, moduleKey), formulaCtx(projectId)]);
-  return { ctx, items: items.map((i) => ({ ...i, data: applyFormulas(fields, i.data, ctx) })) };
+  // 以任务编号为主索引，按字母从小到大排列（导出的 Excel / PDF 同序）
+  const codeKey = fields.find((f) => f.role === "code")?.key;
+  return { ctx, items: sortByCode(items.map((i) => ({ ...i, data: applyFormulas(fields, i.data, ctx) })), codeKey) };
 }
 
 export async function listItems(projectId: string, moduleKey: string, deleted = false) {
