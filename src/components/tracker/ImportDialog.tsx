@@ -84,7 +84,7 @@ export function ImportDialog({ projectId, moduleKey, onClose }: { projectId: str
       ) : !pv ? (
         <div className="space-y-4">
           <p className="text-sm leading-relaxed text-brand-mist">
-            上传{s.file}（.xlsx）。系统按「编号」与现有记录比对，先生成差异预览，确认后才写入。计算列（计划日期、延迟天数、前缀编码）由系统自动计算，文件中的值会被忽略。
+            上传{s.file}（.xlsx）。系统按「{moduleKey === "fa" ? "任务编号" : "材料前缀编码"}」与现有记录比对，先生成差异预览，确认后才写入。计算列（{moduleKey === "fa" ? "计划日期、延迟天数、上级任务" : "材料前缀编码由 分类编码-大类代码-中类代码-顺序码 生成"}）由系统自动计算。
           </p>
           <button
             type="button"

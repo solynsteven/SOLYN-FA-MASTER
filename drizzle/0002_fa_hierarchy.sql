@@ -1,4 +1,4 @@
-ALTER TABLE "field_definitions" ADD COLUMN "config" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "field_definitions" ADD COLUMN IF NOT EXISTS "config" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
 -- FA：No. 更名为「任务编号」，保留 No. 作为 Excel 表头别名
 UPDATE "field_definitions" SET "label" = '任务编号', "aliases" = "aliases" || '["No."]'::jsonb, "updated_at" = now()
 WHERE "module_key" = 'fa' AND "key" = 'code' AND "label" = 'No.';

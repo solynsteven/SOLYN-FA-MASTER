@@ -48,8 +48,11 @@ export async function previewImport(projectId: string, moduleKey: string, fd: Fo
       }
     }
     const codeFld = fields.find((f) => f.role === "code");
-    if (!codeFld || (!codeFld.formula && !columns.some((c) => c.fieldKey === codeFld.key))) {
-      throw new Error("未找到「编号」列（字段角色 = 编号），无法与已有记录比对");
+    if (!codeFld) {
+      throw new Error("本模块没有设置「编号」角色的字段（数据库结构可能尚未升级）。请确认 Vercel 最新部署的构建日志中出现「数据库迁移完成」，或在项目管理的字段配置中为匹配键字段设置「编号」角色");
+    }
+    if (!codeFld.formula && !columns.some((c) => c.fieldKey === codeFld.key)) {
+      throw new Error(`文件中没有找到匹配键列「${codeFld.label}」，无法与已有记录比对。请确认上传的是${skill.title}，且表头包含「${codeFld.label}」`);
     }
     const meta = readMeta(ws, headerRow, skill);
     const parsed = readRows(ws, headerRow, columns, fields, skill);
