@@ -77,6 +77,17 @@ export async function fillStored(projectId: string, moduleKey: string, fields: F
     const m = String(out.cat_code ?? "").match(/^S(\d+)$/i);
     if (catF && !out.category && m) out.category = catF.options.find((o) => o.startsWith(`${m[1]}.`)) ?? null;
   }
+  // Q&A：编号留空时取当前最大编号 + 1
+  if (moduleKey === "qa") {
+    const codeF = fields.find((f) => f.role === "code");
+    if (codeF && (out[codeF.key] === null || out[codeF.key] === undefined || String(out[codeF.key]).trim() === "")) {
+      const rows = await db
+        .select({ k: trackerItems.externalKey })
+        .from(trackerItems)
+        .where(and(eq(trackerItems.projectId, projectId), eq(trackerItems.moduleKey, moduleKey)));
+      out[codeF.key] = String(Math.max(0, ...rows.map((r) => Number(r.k) || 0)) + 1);
+    }
+  }
   return applyStoredFormulas(fields, out);
 }
 
@@ -127,6 +138,14 @@ export async function createItem(
   pre?: { fields: FieldDefinition[]; seq: number },
 ) {
   const fields = pre?.fields ?? (await listFields(projectId, moduleKey));
+  if (moduleKey === "qa" && source === "manual") {
+    // Q&A 手工新增：更新日期取当天；权限组默认 ADM（最严格）；回复状态默认「未答复」
+    const has = (k: string) => fields.some((f) => f.key === k);
+    raw = { ...raw };
+    if (!raw.update_date && has("update_date")) raw.update_date = todayISO();
+    if (!raw.access_group && has("access_group")) raw.access_group = "ADM";
+    if (!raw.status && has("status")) raw.status = fields.find((f) => f.key === "status")?.options[0] ?? null;
+  }
   const data = await fillStored(projectId, moduleKey, fields, sanitize(fields, raw, { strict: source === "manual", partial: false }));
   if (source === "manual") {
     await assertUniqueCode(projectId, moduleKey, fields, data);
@@ -165,6 +184,8 @@ export async function updateItem(
   if (!item || item.deletedAt) throw new Error("记录不存在或已被删除");
   const fields = preFields ?? (await listFields(item.projectId, item.moduleKey));
   const patch = sanitize(fields, raw, { strict: source === "manual", partial: true });
+  // Q&A：手工修改时自动刷新「更新日期」（导入时以文件为准）
+  const qaTouch = item.moduleKey === "qa" && source === "manual" && fields.some((f) => f.key === "update_date") && (!("update_date" in raw) || isEqualValue(normalizeValue("date", raw.update_date), item.data.update_date ?? null));
   // 存库型公式（如 DD 材料前缀编码）随组成字段变化而重算
   const merged = await fillStored(item.projectId, item.moduleKey, fields, { ...item.data, ...patch }, item.id);
   for (const f of fields) if (f.formula && !isEqualValue(merged[f.key], item.data[f.key]) && FORMULAS[f.formula]?.stored) patch[f.key] = merged[f.key];
@@ -174,6 +195,10 @@ export async function updateItem(
     if (!isEqualValue(item.data[k], v)) changes[k] = { from: item.data[k] ?? null, to: v };
   }
   if (!Object.keys(changes).length) return { item, changed: false };
+  if (qaTouch && !isEqualValue(item.data.update_date, todayISO())) {
+    patch.update_date = todayISO();
+    changes.update_date = { from: item.data.update_date ?? null, to: patch.update_date };
+  }
   const now = new Date();
   const data = { ...item.data, ...patch };
   if (source === "manual") {

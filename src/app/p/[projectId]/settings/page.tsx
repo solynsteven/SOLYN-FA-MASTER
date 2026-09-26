@@ -3,6 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { projectModules, users } from "@/db/schema";
 import { loadVdr } from "@/lib/vdr/access";
+import { seedDefaultFields } from "@/lib/project-service";
 import { VdrBinTab, type BinRow } from "./VdrBinTab";
 import { requireProject } from "@/lib/auth";
 import { listFields, listProjectMembers, countItems } from "@/lib/queries";
@@ -18,6 +19,7 @@ const TABS = [
   { k: "members", l: "成员与权限" },
   { k: "fa", l: "FA 任务字段" },
   { k: "dd", l: "DD 任务字段" },
+  { k: "qa", l: "Q&A 字段" },
   { k: "vdr-bin", l: "VDR 回收站" },
   { k: "modules", l: "业务模块" },
   { k: "info", l: "基本信息" },
@@ -39,7 +41,8 @@ export default async function SettingsPage({ params, searchParams }: { params: P
         members={members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, title: m.title ?? "", role: m.role, isActive: m.isActive, joinedAt: m.joinedAt.toISOString(), vdrGroup: m.vdrGroup, organization: m.organization }))}
       />
     );
-  } else if (tab === "fa" || tab === "dd") {
+  } else if (tab === "fa" || tab === "dd" || tab === "qa") {
+    await seedDefaultFields(projectId, tab);
     const [fields, n] = await Promise.all([listFields(projectId, tab), countItems(projectId, tab)]);
     body = (
       <FieldsTab

@@ -96,7 +96,7 @@ export async function removeMember(projectId: string, userId: string) {
 /* ------------------------------- 字段 ------------------------------- */
 
 const TYPES = ["text", "longtext", "number", "percent", "date", "select", "multiselect", "boolean", "user"] as const;
-const ROLES = ["code", "title", "category", "priority", "status", "owner", "due_date", "start_date", "progress"] as const;
+const ROLES = ["code", "title", "category", "priority", "status", "owner", "due_date", "start_date", "progress", "access"] as const;
 
 const fieldSchema = z.object({
   label: z.string().trim().min(1, "请填写字段名称").max(40),
@@ -213,7 +213,7 @@ export async function resetFields(projectId: string, moduleKey: string) {
       .where(and(eq(trackerItems.projectId, projectId), eq(trackerItems.moduleKey, moduleKey), isNull(trackerItems.deletedAt)));
     if ((r?.n ?? 0) > 0) throw new Error("模块内已有记录，不能重置字段模板");
     await db.delete(fieldDefinitions).where(and(eq(fieldDefinitions.projectId, projectId), eq(fieldDefinitions.moduleKey, moduleKey)));
-    await seedDefaultFields(projectId, moduleKey as "fa" | "dd");
+    await seedDefaultFields(projectId, moduleKey as "fa" | "dd" | "qa");
     await audit(a.user.id, "field.reset", { moduleKey }, projectId);
     refresh(projectId);
   }, "已恢复默认字段");

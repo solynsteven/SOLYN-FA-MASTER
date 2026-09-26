@@ -27,7 +27,7 @@ export function MembersTab({ projectId, members, meId }: { projectId: string; me
       <Alert>{a.error}</Alert>
       <div className="card overflow-hidden">
         <table className="w-full">
-          <thead><tr><th className="th">姓名</th><th className="th">邮箱</th><th className="th w-40">项目角色</th><th className="th w-44">VDR 权限组</th><th className="th w-44">所属机构</th><th className="th w-20">账号</th><th className="th w-28">加入日期</th><th className="th w-16" /></tr></thead>
+          <thead><tr><th className="th">姓名</th><th className="th">邮箱</th><th className="th w-40">项目角色</th><th className="th w-44">权限组（VDR / Q&A）</th><th className="th w-44">所属机构</th><th className="th w-20">账号</th><th className="th w-28">加入日期</th><th className="th w-16" /></tr></thead>
           <tbody>
             {members.map((m) => (
               <tr key={m.userId} className="hover:bg-ink-850/60">
@@ -86,7 +86,7 @@ export function MembersTab({ projectId, members, meId }: { projectId: string; me
         </table>
       </div>
       <datalist id="vdr-orgs">{[...new Set(members.map((m) => m.organization).filter(Boolean))].map((o) => <option key={o!} value={o!} />)}</datalist>
-      <p className="mt-2 text-2xs text-brand-sage">VDR 权限组决定成员在数据室中的默认权限；所属机构用于访问分析中“各买家访问强度”的汇总（同一机构的多个账号合并统计）。</p>
+      <p className="mt-2 text-2xs text-brand-sage">权限组决定成员在 VDR 中的默认权限，同时决定 Q&A 记录、知识库与 AI 问答的可见范围（Q&A 只识别 ADM &gt; SEL &gt; EXC &gt; DD，BID1 / BID2 看不到 Q&A；项目管理员视为 ADM）；所属机构用于访问分析中“各买家访问强度”的汇总（同一机构的多个账号合并统计）。</p>
       {adding && <AddMemberModal projectId={projectId} onClose={() => setAdding(false)} />}
     </>
   );

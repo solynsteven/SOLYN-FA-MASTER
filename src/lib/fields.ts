@@ -23,6 +23,7 @@ export const FIELD_ROLES: { value: Exclude<FieldRole, null>; label: string; hint
   { value: "start_date", label: "开始日期", hint: "" },
   { value: "due_date", label: "截止日期", hint: "用于识别逾期" },
   { value: "progress", label: "完成度", hint: "" },
+  { value: "access", label: "权限组", hint: "Q&A：按 ADM > SEL > EXC > DD 控制记录可见范围" },
 ];
 
 export function fieldTypeLabel(t: string) {
@@ -53,6 +54,9 @@ export const DD_CATEGORIES = [
   "5. 人事·劳务\n5. 人事・労務", "6. 法务·合规\n6. 法務・コンプライアンス", "7. IT·系统\n7. IT・システム", "8. 交易专用\n8. 本件固有（ディール専用）", "9. 出租车业专项\n9. タクシー事業固有",
 ];
 export const DD_CAT_CODES = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"];
+
+export const QA_STATUS = ["未答复", "待跟踪", "已解决", "已无效"];
+export const QA_GROUP_OPTIONS = ["ADM", "SEL", "EXC", "DD"];
 
 export const DEFAULT_FIELDS: Record<TrackerModuleKey, Tpl[]> = {
   fa: [
@@ -95,6 +99,22 @@ export const DEFAULT_FIELDS: Record<TrackerModuleKey, Tpl[]> = {
     { key: "location", label: "保存位置·文件名／保存場所・ファイル名", type: "text", width: 200, aliases: ["保存位置", "保存場所", "文件名"] },
     { key: "remark", label: "备注／備考", type: "longtext", width: 320, aliases: ["备注", "備考"] },
     { key: "revision", label: "变更／改訂", type: "select", options: ["新規追加 v3／v3新增", "内容改訂 v3／v3修订", "新規追加 v4／v4新增"], width: 140, aliases: ["变更", "改訂"] },
+  ],
+  // 《QA问答进度跟踪表 List v1》「Q&A」A〜M 列
+  qa: [
+    { key: "code", label: "编号", type: "text", role: "code", width: 64, aliases: ["#", "No.", "No", "序号", "问题编号"] },
+    { key: "access_group", label: "权限组", type: "select", role: "access", options: QA_GROUP_OPTIONS, width: 76, aliases: ["权限", "閲覧権限", "Access"] },
+    { key: "stage", label: "项目阶段", type: "text", role: "category", width: 88, aliases: ["阶段", "任务编号", "フェーズ"] },
+    { key: "asker", label: "提问者", type: "select", options: ["SOLYN FA"], width: 100, aliases: ["提问方", "質問者"] },
+    { key: "question", label: "提问内容", type: "longtext", role: "title", required: true, width: 380, aliases: ["问题", "質問内容", "质问内容"] },
+    { key: "purpose", label: "确认目的与论点", type: "longtext", width: 300, aliases: ["确认目的", "論点", "目的与论点", "確認目的と論点"] },
+    { key: "status", label: "回复状态", type: "select", role: "status", options: QA_STATUS, width: 96, aliases: ["状态", "回答状況", "回复状况"] },
+    { key: "respondent", label: "提问对象", type: "select", role: "owner", options: ["CEO"], width: 96, aliases: ["回答者", "回复方", "質問先"] },
+    { key: "answer", label: "回答记录", type: "longtext", width: 340, aliases: ["回答", "答复", "回答内容", "回答記録"] },
+    { key: "remark", label: "备注", type: "longtext", width: 200, aliases: ["備考"] },
+    { key: "interview_ref", label: "关联访谈记录", type: "text", width: 150, aliases: ["访谈记录", "関連面談記録"] },
+    { key: "material_ref", label: "关联材料", type: "text", width: 130, aliases: ["关联材料编码", "材料编码", "関連資料"] },
+    { key: "update_date", label: "更新日期", type: "date", width: 104, aliases: ["更新日", "更新日付"] },
   ],
 };
 

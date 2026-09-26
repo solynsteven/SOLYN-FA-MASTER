@@ -12,7 +12,7 @@ import { createField, updateField, deleteField, reorderFields, resetFields, type
 
 type F = { id: string; key: string; label: string; type: FieldType; options: string[]; role: FieldRole; required: boolean; showInTable: boolean; width: number; aliases: string[]; formula: string | null; config: { levelParents?: Record<string, string | null> } };
 
-export function FieldsTab({ projectId, moduleKey, fields: f0, itemCount }: { projectId: string; moduleKey: "fa" | "dd"; fields: F[]; itemCount: number }) {
+export function FieldsTab({ projectId, moduleKey, fields: f0, itemCount }: { projectId: string; moduleKey: "fa" | "dd" | "qa"; fields: F[]; itemCount: number }) {
   const router = useRouter();
   const [fields, setFields] = useState(f0);
   const [editing, setEditing] = useState<F | "new" | null>(null);
@@ -128,7 +128,7 @@ export function FieldsTabKeyed(props: Parameters<typeof FieldsTab>[0]) {
 }
 
 function FieldModal({ f, onClose, onSave, onSaved, itemCount, moduleKey }: {
-  f: F | null; onClose: () => void; itemCount: number; moduleKey: "fa" | "dd";
+  f: F | null; onClose: () => void; itemCount: number; moduleKey: "fa" | "dd" | "qa";
   onSave: (i: FieldInputT) => ReturnType<typeof createField>; onSaved: () => void;
 }) {
   const a = useAction();

@@ -42,6 +42,7 @@ function Bilingual({ text, strong, clamp }: { text: string; strong?: boolean; cl
 
 export function Cell({ f, v, overdue, users, depth = 1 }: { f: TField; v: unknown; overdue?: boolean; users: Map<string, string>; depth?: number }) {
   if (v === null || v === undefined || v === "" || (Array.isArray(v) && !v.length)) return <span className="text-brand-sage/40">—</span>;
+  if (f.role === "access") return <Badge tone={v === "ADM" ? "green" : v === "SEL" ? "mid" : "outline"} className="font-num tracking-wide">{String(v)}</Badge>;
   if (f.role === "status") return <Badge tone={statusTone(v)}>{String(v)}</Badge>;
   if (f.role === "priority" && /任务|任務/.test(String(v))) return <span className={depth === 0 ? "text-xs font-medium text-brand-paper" : "text-xs text-brand-mist/80"}>{String(v)}</span>;
   if (f.role === "priority") return <Badge tone={priorityTone(v)}>{String(v)}</Badge>;

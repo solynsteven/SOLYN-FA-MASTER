@@ -7,7 +7,7 @@ import { listItemsDerived, moduleHistory } from "@/lib/tracker";
 
 export type ExportData = Awaited<ReturnType<typeof loadExportData>>;
 
-export async function loadExportData(project: Project, moduleKey: "fa" | "dd", withHistory: boolean) {
+export async function loadExportData(project: Project, moduleKey: "fa" | "dd" | "qa", withHistory: boolean) {
   const fields: FieldDefinition[] = await listFields(project.id, moduleKey);
   const { items, ctx } = await listItemsDerived(project.id, moduleKey, fields);
   const ids = [...new Set(items.map((i) => i.updatedBy).filter(Boolean))] as string[];
@@ -24,6 +24,7 @@ export async function loadExportData(project: Project, moduleKey: "fa" | "dd", w
 export const MODULE_TITLE = {
   fa: { zh: "FA 项目进度管理表", en: "Deal Workplan", report: "FA 项目完成情况报告", item: "任务" },
   dd: { zh: "DD 材料信息收集进度表", en: "Due Diligence Request List", report: "DD 材料收集完成情况报告", item: "材料" },
+  qa: { zh: "QA 问答进度跟踪表", en: "Q&A Tracker", report: "Q&A 问答完成情况报告", item: "问题" },
 } as const;
 
 export function fileStamp(d = new Date()) {

@@ -7,10 +7,10 @@ import { Alert, Badge, Modal, Toggle, cn, useAction } from "@/components/ui";
 import { previewImport, applyImport } from "@/app/p/[projectId]/[module]/import-actions";
 import type { ImportPreview } from "@/lib/import/types";
 
-const SKILL = { fa: { name: "solyn-skill-fa-pm-import", file: "《项目管理进度表》" }, dd: { name: "solyn-skill-fa-dd-import", file: "《DD材料信息收集进度表》" } };
+const SKILL = { fa: { name: "solyn-skill-fa-pm-import", file: "《项目管理进度表》" }, dd: { name: "solyn-skill-fa-dd-import", file: "《DD材料信息收集进度表》" }, qa: { name: "solyn-skill-qa-dd-import", file: "《QA问答进度跟踪表》" } };
 const HOW: Record<string, string> = { exact: "精确", alias: "别名", fuzzy: "近似", claude: "Claude", computed: "计算列", none: "未匹配" };
 
-export function ImportDialog({ projectId, moduleKey, onClose }: { projectId: string; moduleKey: "fa" | "dd"; onClose: () => void }) {
+export function ImportDialog({ projectId, moduleKey, onClose }: { projectId: string; moduleKey: "fa" | "dd" | "qa"; onClose: () => void }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -84,7 +84,7 @@ export function ImportDialog({ projectId, moduleKey, onClose }: { projectId: str
       ) : !pv ? (
         <div className="space-y-4">
           <p className="text-sm leading-relaxed text-brand-mist">
-            上传{s.file}（.xlsx）。系统按「{moduleKey === "fa" ? "任务编号" : "材料前缀编码"}」与现有记录比对，先生成差异预览，确认后才写入。计算列（{moduleKey === "fa" ? "计划日期、延迟天数、上级任务" : "材料前缀编码由 分类编码-大类代码-中类代码-顺序码 生成"}）由系统自动计算。
+            上传{s.file}（.xlsx）。系统按「{moduleKey === "fa" ? "任务编号" : moduleKey === "qa" ? "编号（#）" : "材料前缀编码"}」与现有记录比对，先生成差异预览，确认后才写入。{moduleKey === "qa" ? "「权限组」为空的问题按 ADM（仅卖方 FA 可见）处理。" : <>计算列（{moduleKey === "fa" ? "计划日期、延迟天数、上级任务" : "材料前缀编码由 分类编码-大类代码-中类代码-顺序码 生成"}）由系统自动计算。</>}
           </p>
           <button
             type="button"

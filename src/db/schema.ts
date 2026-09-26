@@ -79,7 +79,7 @@ export type FieldConfig = { levelParents?: Record<string, string | null> };
 
 export type ProjectSettings = { faStartDate?: string | null };
 
-export type FieldRole = "code" | "title" | "category" | "priority" | "status" | "owner" | "due_date" | "start_date" | "progress" | null;
+export type FieldRole = "code" | "title" | "category" | "priority" | "status" | "owner" | "due_date" | "start_date" | "progress" | "access" | null;
 
 export const fieldDefinitions = pgTable(
   "field_definitions",
@@ -317,3 +317,95 @@ export const vdrEvents = pgTable(
 export type VdrFolder = typeof vdrFolders.$inferSelect;
 export type VdrFile = typeof vdrFiles.$inferSelect;
 export type VdrPermission = typeof vdrPermissions.$inferSelect;
+
+/* ------------------------------------------------------------------ */
+/*  Q&A 项目知识库 / AI 智能问答                                         */
+/* ------------------------------------------------------------------ */
+
+/** Q&A 文件区：带权限组（ADM > SEL > EXC > DD 逐级放大） */
+export const qaAreas = pgTable(
+  "qa_areas",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    accessGroup: text("access_group").notNull().default("ADM"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("qa_areas_project_idx").on(t.projectId)],
+);
+
+/** 文件区中的 .md 文件（正文直接存库，检索时按标题切分段落） */
+export const qaDocs = pgTable(
+  "qa_docs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    areaId: uuid("area_id").notNull().references(() => qaAreas.id, { onDelete: "cascade" }),
+    /** 项目内文件序号：AI 引用标记 [D序号.段落] 使用，删除后不复用 */
+    seq: integer("seq").notNull(),
+    name: text("name").notNull(),
+    title: text("title"),
+    content: text("content").notNull(),
+    size: integer("size").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("qa_docs_project_idx").on(t.projectId), index("qa_docs_area_idx").on(t.areaId), uniqueIndex("qa_docs_project_seq_uq").on(t.projectId, t.seq)],
+);
+
+/** AI 问答会话（按用户保存） */
+export const qaChats = pgTable(
+  "qa_chats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default("新对话"),
+    /** 提问时的权限组（留痕） */
+    accessGroup: text("access_group"),
+    summary: text("summary"),
+    summaryAt: timestamp("summary_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("qa_chats_project_user_idx").on(t.projectId, t.userId, t.updatedAt)],
+);
+
+export type QaCitation = {
+  ref: string; // Q12 / D3.5
+  kind: "qa" | "doc";
+  label: string; // 「Q&A #12」/「文件名.md › 章节」
+  detail: string; // 阶段、状态 / 行号
+  snippet: string;
+  itemId?: string;
+  docId?: string;
+  anchor?: number;
+};
+
+export const qaMessages = pgTable(
+  "qa_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    chatId: uuid("chat_id").notNull().references(() => qaChats.id, { onDelete: "cascade" }),
+    role: text("role").$type<"user" | "assistant">().notNull(),
+    content: text("content").notNull(),
+    citations: jsonb("citations").$type<QaCitation[]>().notNull().default([]),
+    model: text("model"),
+    usage: jsonb("usage").$type<Record<string, unknown>>().notNull().default({}),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("qa_messages_chat_idx").on(t.chatId, t.createdAt)],
+);
+
+export type QaArea = typeof qaAreas.$inferSelect;
+export type QaDoc = typeof qaDocs.$inferSelect;
+export type QaChat = typeof qaChats.$inferSelect;
+export type QaMessage = typeof qaMessages.$inferSelect;

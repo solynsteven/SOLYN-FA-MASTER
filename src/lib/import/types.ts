@@ -3,7 +3,7 @@ import type { Cell } from "./excel";
 /** 一个导入 Skill 的确定性规则（与 skills/<name>/SKILL.md 描述一致） */
 export type ImportSkill = {
   name: string; // solyn-skill-fa-pm-import
-  moduleKey: "fa" | "dd";
+  moduleKey: "fa" | "dd" | "qa";
   title: string;
   /** 优先匹配的工作表名 */
   preferredSheets: string[];

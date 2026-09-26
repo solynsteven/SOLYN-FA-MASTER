@@ -42,4 +42,24 @@ export const ddImport: ImportSkill = {
   isDataRow: (v) => !!v.item,
 };
 
-export const IMPORT_SKILLS = { fa: faPmImport, dd: ddImport } as const;
+/**
+ * solyn-skill-qa-dd-import —— 《QA问答进度跟踪表》
+ * 规则说明见 skills/solyn-skill-qa-dd-import/SKILL.md
+ */
+export const qaImport: ImportSkill = {
+  name: "solyn-skill-qa-dd-import",
+  moduleKey: "qa",
+  title: "QA问答进度跟踪表",
+  preferredSheets: ["Q&A", "QA", "问答", "Q&A List"],
+  headerHints: ["#", "权限组", "项目阶段", "提问者", "提问内容", "确认目的与论点", "回复状态", "提问对象", "回答记录", "备注", "关联访谈记录", "关联材料", "更新日期"],
+  cellRule: (key, value) => {
+    // 权限组统一为大写；未知值保留原文（预览中会提示为新选项）
+    if (key === "access_group" && typeof value === "string") return value.trim().toUpperCase() || null;
+    // 编号：Excel 中常为数字 1、2、3 → 文本 "1"
+    if (key === "code" && typeof value === "number") return String(value);
+    return undefined;
+  },
+  isDataRow: (v) => !!v.question,
+};
+
+export const IMPORT_SKILLS = { fa: faPmImport, dd: ddImport, qa: qaImport } as const;

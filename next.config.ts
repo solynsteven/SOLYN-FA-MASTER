@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
     "/p/[projectId]/[module]/export": ["./assets/fonts/**/*", "./public/brand/**/*", "./node_modules/pdfkit/js/**/*"],
     "/p/[projectId]/[module]": ["./skills/**/*"],
     "/p/[projectId]/vdr/analytics/export": ["./assets/fonts/**/*", "./public/brand/**/*", "./node_modules/pdfkit/js/**/*"],
+    "/p/[projectId]/qa/export": ["./assets/fonts/**/*", "./public/brand/**/*", "./node_modules/pdfkit/js/**/*"],
+    "/p/[projectId]/qa/ai/[chatId]/export": ["./assets/fonts/**/*", "./public/brand/**/*", "./node_modules/pdfkit/js/**/*"],
+    "/p/[projectId]/qa": ["./skills/**/*"],
   },
 };
 

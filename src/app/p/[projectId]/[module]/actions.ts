@@ -8,6 +8,7 @@ import { assertProject, audit } from "@/lib/auth";
 import { run } from "@/lib/action";
 import { isTrackerModule } from "@/lib/modules";
 import * as T from "@/lib/tracker";
+import { qaViewer, canSee } from "@/lib/qa/access";
 
 async function guard(projectId: string, moduleKey: string, manage: boolean) {
   if (!isTrackerModule(moduleKey)) throw new Error("未知模块");
@@ -66,6 +67,10 @@ export async function itemHistoryAction(projectId: string, moduleKey: string, it
     await guard(projectId, moduleKey, false);
     const it = await T.getItem(itemId);
     if (!it || it.projectId !== projectId) throw new Error("记录不存在");
+    if (moduleKey === "qa") {
+      const v = await qaViewer(projectId);
+      if (!v || !canSee(v.rank, it.data.access_group)) throw new Error("无权查看该记录");
+    }
     const rows = await T.itemHistory(itemId);
     return rows.map(({ c, actor }) => ({
       id: c.id, action: c.action, source: c.source, changes: c.changes, actor: actor ?? "—", at: c.createdAt.toISOString(),

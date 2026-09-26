@@ -20,7 +20,7 @@ import type { TField, TItem, TMember } from "./types";
 import { deleteItemsAction } from "@/app/p/[projectId]/[module]/actions";
 
 type Props = {
-  projectId: string; moduleKey: "fa" | "dd"; moduleLabel: string; itemLabel: string;
+  projectId: string; moduleKey: "fa" | "dd" | "qa"; moduleLabel: string; itemLabel: string;
   fields: TField[]; items: TItem[]; members: TMember[]; canManage: boolean; today: string; startDate: string | null;
 };
 
@@ -58,7 +58,8 @@ export function TrackerClient(p: Props) {
 
   const statusF = fields.find((f) => f.role === "status");
   const dueF = fields.find((f) => f.role === "due_date");
-  const filterFields = fields.filter((f) => f.type === "select" && (f.role === "category" || f.role === "status" || f.role === "priority")).slice(0, 4);
+  const filterFields = fields.filter((f) => f.type === "select" && ["category", "status", "priority", "access", ...(p.moduleKey === "qa" ? ["owner"] : [])].includes(f.role ?? "")).slice(0, 5);
+  const isQa = p.moduleKey === "qa";
   // 任务编号为主索引：固定在第一列（替代 # 序号列），默认按编号自然排序
   const codeF = fields.find((f) => f.role === "code");
   const cols = fields.filter((f) => f.showInTable && !hidden.includes(f.key) && f.key !== codeF?.key);
@@ -129,7 +130,7 @@ export function TrackerClient(p: Props) {
       {/* KPI */}
       <div className="mb-5 grid gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,2fr)]">
         <Kpi label={`${p.itemLabel}总数`} value={sum.total} />
-        <Kpi label="已完成" value={sum.done} sub={`完成率 ${sum.rate}%（已剔除不适用/中止）`} />
+        <Kpi label={isQa ? "已解决" : "已完成"} value={sum.done} sub={isQa ? `解决率 ${sum.rate}%（已剔除已无效）` : `完成率 ${sum.rate}%（已剔除不适用/中止）`} />
         {sum.hasDue ? (
           <>
             <Kpi label="已逾期" value={sum.overdue} tone={sum.overdue ? "danger" : undefined} sub="计划完成日已过且未完成 · 点击筛选" onClick={() => setOnlyOverdue((v) => !v)} active={onlyOverdue} />
@@ -137,8 +138,8 @@ export function TrackerClient(p: Props) {
           </>
         ) : (
           <>
-            <Kpi label="未完成" value={sum.open} sub={sum.partial ? `其中部分接收 ${sum.partial} 项` : "不含不适用项"} />
-            <Kpi label="不适用" value={sum.excluded} sub="不计入完成率分母" />
+            <Kpi label={isQa ? "未解决" : "未完成"} value={sum.open} sub={isQa ? `未答复 ${sum.open - sum.progress} · 待跟踪 ${sum.progress}` : sum.partial ? `其中部分接收 ${sum.partial} 项` : "不含不适用项"} />
+            <Kpi label={isQa ? "已无效" : "不适用"} value={sum.excluded} sub={isQa ? "不计入解决率分母" : "不计入完成率分母"} />
           </>
         )}
         <div className="card p-4">
@@ -240,11 +241,11 @@ export function TrackerClient(p: Props) {
                 <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded-md border border-line-strong bg-ink-850 p-1 shadow-panel" onMouseLeave={() => setExportMenu(false)}>
                   <a href={`/p/${p.projectId}/${p.moduleKey}/export?format=xlsx`} onClick={() => setExportMenu(false)} className="flex items-start gap-2.5 rounded px-2.5 py-2 hover:bg-ink-700">
                     <FileSpreadsheet size={16} className="mt-0.5 text-brand-sage" />
-                    <span><span className="block text-xs text-brand-paper">Excel 跟踪表</span><span className="block text-2xs text-brand-sage">全部字段 + 统计汇总 + 变更记录</span></span>
+                    <span><span className="block text-xs text-brand-paper">Excel 跟踪表</span><span className="block text-2xs text-brand-sage">{isQa ? "你有权阅读的问答记录 + 统计汇总 + 变更记录" : "全部字段 + 统计汇总 + 变更记录"}</span></span>
                   </a>
                   <a href={`/p/${p.projectId}/${p.moduleKey}/export?format=pdf`} onClick={() => setExportMenu(false)} className="flex items-start gap-2.5 rounded px-2.5 py-2 hover:bg-ink-700">
                     <FileText size={16} className="mt-0.5 text-brand-sage" />
-                    <span><span className="block text-xs text-brand-paper">PDF 完成情况报告</span><span className="block text-2xs text-brand-sage">种类、级别、状态占比与重点事项</span></span>
+                    <span><span className="block text-xs text-brand-paper">PDF 完成情况报告</span><span className="block text-2xs text-brand-sage">{isQa ? "项目阶段、问答双方身份、回复状态占比与待跟进问题" : "种类、级别、状态占比与重点事项"}</span></span>
                   </a>
                 </div>
               )}

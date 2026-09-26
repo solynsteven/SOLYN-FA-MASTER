@@ -36,6 +36,13 @@
       "when": 1790406581329,
       "tag": "0004_vdr",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790434427017,
+      "tag": "0005_qa_kb",
+      "breakpoints": true
     }
   ]
 }
