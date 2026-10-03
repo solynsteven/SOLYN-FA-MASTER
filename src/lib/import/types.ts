@@ -14,7 +14,9 @@ export type ImportSkill = {
   /** 单元格级特殊规则：返回 undefined 表示走默认处理 */
   cellRule?: (fieldKey: string, value: unknown, cell: Cell) => unknown | undefined;
   /** 行级规则（可参考上一数据行），如按 Excel 公式补全顺序码 */
-  rowRule?: (data: Record<string, unknown>, prev: Record<string, unknown> | null) => void;
+  rowRule?: (data: Record<string, unknown>, prev: Record<string, unknown> | null, meta: { startDate?: string | null }) => void;
+  /** 计算列中仍需读取文件值作为推导依据的字段（以 __key 暂存，rowRule 用完后删除） */
+  keepFormulaInputs?: string[];
   /** 判断一行是否为数据行 */
   isDataRow?: (vals: Record<string, unknown>) => boolean;
 };

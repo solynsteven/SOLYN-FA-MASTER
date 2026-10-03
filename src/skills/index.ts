@@ -1,5 +1,6 @@
 import type { ImportSkill } from "@/lib/import/types";
 import { fillColor } from "@/lib/import/excel";
+import { addDays } from "@/lib/formulas";
 
 /**
  * solyn-skill-fa-pm-import —— 《项目管理进度表》（Sell-side M&A 進捗管理表）
@@ -12,6 +13,12 @@ export const faPmImport: ImportSkill = {
   preferredSheets: [],
   headerHints: ["No.", "Phase", "阶段", "任务等级", "任务", "タスク", "担当", "計画開始日", "計画完了日", "ステータス", "進捗率", "成果物"],
   meta: [{ key: "startDate", labels: ["プロジェクト開始日", "项目开始日", "Project Start"] }],
+  // 计划开始日为手工日期；旧模板中该列是公式且无缓存值时，按「项目开始日 + 開始D+」补全
+  keepFormulaInputs: ["start_offset"],
+  rowRule: (d, _prev, meta) => {
+    const o = Number(d.__start_offset);
+    if (!d.plan_start && meta.startDate && d.__start_offset !== undefined && Number.isFinite(o)) d.plan_start = addDays(meta.startDate, o);
+  },
   isDataRow: (v) => !!(v.code || v.task),
 };
 

@@ -30,14 +30,23 @@ export const FORMULAS: Record<string, { label: string; desc: string; type: "date
       return c.startDate && o !== null ? addDays(c.startDate, o) : null;
     },
   },
+  fa_start_offset: {
+    label: "開始 D+",
+    desc: "= 计划开始日 − 项目开始日（天）。计划开始日手工填写，D+ 自动计算",
+    type: "number",
+    calc: (d, c) => {
+      const s = str(d.plan_start);
+      return c.startDate && s ? diffDays(s, c.startDate) : null;
+    },
+  },
   fa_plan_end: {
     label: "计划完成日",
     desc: "= 计划开始日 + 所要日数 − 1",
     type: "date",
-    calc: (d, c) => {
-      const o = num(d.start_offset);
+    calc: (d) => {
+      const s = str(d.plan_start);
       const n = num(d.duration);
-      return c.startDate && o !== null && n !== null ? addDays(c.startDate, o + n - 1) : null;
+      return s && n !== null ? addDays(s, Math.max(0, n - 1)) : null;
     },
   },
   fa_delay_days: {

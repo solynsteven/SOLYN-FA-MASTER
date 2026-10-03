@@ -55,7 +55,7 @@ export async function previewImport(projectId: string, moduleKey: string, fd: Fo
       throw new Error(`文件中没有找到匹配键列「${codeFld.label}」，无法与已有记录比对。请确认上传的是${skill.title}，且表头包含「${codeFld.label}」`);
     }
     const meta = readMeta(ws, headerRow, skill);
-    const parsed = readRows(ws, headerRow, columns, fields, skill);
+    const parsed = readRows(ws, headerRow, columns, fields, skill, { startDate: meta.startDate ?? a.project.settings?.faStartDate ?? null });
     warnings.push(...parsed.warnings);
 
     const existing = await db

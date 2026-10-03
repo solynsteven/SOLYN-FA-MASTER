@@ -137,7 +137,7 @@ export function readMeta(ws: Sheet, headerRow: number, skill: ImportSkill) {
 
 /* ------------------------------ 数据行 ------------------------------ */
 
-export function readRows(ws: Sheet, headerRow: number, cols: ColumnMap[], fields: FieldDefinition[], skill: ImportSkill) {
+export function readRows(ws: Sheet, headerRow: number, cols: ColumnMap[], fields: FieldDefinition[], skill: ImportSkill, meta: { startDate?: string | null } = {}) {
   const byKey = new Map(fields.map((f) => [f.key, f]));
   const codeF = fields.find((f) => f.role === "code");
   const rows: ParsedRow[] = [];
@@ -159,7 +159,11 @@ export function readRows(ws: Sheet, headerRow: number, cols: ColumnMap[], fields
         continue;
       }
       const f = byKey.get(c.fieldKey)!;
-      if (f.formula) continue; // 计算列：由系统计算，忽略文件值
+      if (f.formula) {
+        // 计算列：由系统计算，忽略文件值（个别列暂存为推导依据）
+        if (skill.keepFormulaInputs?.includes(f.key) && v !== null && v !== "") data[`__${f.key}`] = v;
+        continue;
+      }
       const special = skill.cellRule?.(f.key, v, cell);
       if (special !== undefined) v = special;
       if (f.type === "percent" && typeof v === "number" && (cell.numFmt ?? "").includes("%")) v = Math.round(v * 1000) / 10;
@@ -172,7 +176,8 @@ export function readRows(ws: Sheet, headerRow: number, cols: ColumnMap[], fields
     }
     blanks = 0;
     if (skill.isDataRow && !skill.isDataRow(data)) continue;
-    skill.rowRule?.(data, prevData);
+    skill.rowRule?.(data, prevData, meta);
+    for (const k of Object.keys(data)) if (k.startsWith("__")) delete data[k];
     Object.assign(data, applyStoredFormulas(fields, data));
     prevData = data;
     const code = codeF ? String(data[codeF.key] ?? "").trim() : "";

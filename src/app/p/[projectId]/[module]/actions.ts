@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { projects } from "@/db/schema";
+import { projects, trackerItems, trackerItemChanges } from "@/db/schema";
+import { addDays, diffDays } from "@/lib/formulas";
 import { assertProject, audit } from "@/lib/auth";
 import { run } from "@/lib/action";
 import { isTrackerModule } from "@/lib/modules";
@@ -78,15 +79,44 @@ export async function itemHistoryAction(projectId: string, moduleKey: string, it
   });
 }
 
-export async function setFaStartDate(projectId: string, date: string | null) {
+/**
+ * 设置项目开始日。计划开始日为手工日期，開始D+ 随之重算；
+ * shift = true 时同时把全部任务的计划开始日按相同天数平移（保持 D+ 不变），并写入变更记录。
+ */
+export async function setFaStartDate(projectId: string, date: string | null, shift = false) {
   return run(async () => {
     const a = await assertProject(projectId, true);
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("日期格式不正确");
+    const from = a.project.settings?.faStartDate ?? null;
+    let moved = 0;
+    if (shift && from && date && from !== date) {
+      const delta = diffDays(date, from);
+      const rows = await db
+        .select()
+        .from(trackerItems)
+        .where(and(eq(trackerItems.projectId, projectId), eq(trackerItems.moduleKey, "fa"), isNull(trackerItems.deletedAt)));
+      const now = new Date();
+      for (const it of rows) {
+        const old = it.data.plan_start;
+        if (typeof old !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(old)) continue;
+        const nv = addDays(old, delta);
+        await db
+          .update(trackerItems)
+          .set({ data: { ...it.data, plan_start: nv }, fieldUpdatedAt: { ...it.fieldUpdatedAt, plan_start: now.toISOString() }, updatedAt: now, updatedBy: a.user.id })
+          .where(eq(trackerItems.id, it.id));
+        await db.insert(trackerItemChanges).values({
+          itemId: it.id, projectId, moduleKey: "fa", action: "update", source: "manual", actorId: a.user.id,
+          changes: { plan_start: { from: old, to: nv } }, snapshot: { ...it.data, plan_start: nv }, createdAt: now,
+        });
+        moved++;
+      }
+    }
     await db
       .update(projects)
       .set({ settings: { ...a.project.settings, faStartDate: date }, updatedAt: new Date() })
       .where(eq(projects.id, projectId));
-    await audit(a.user.id, "project.fa_start_date", { from: a.project.settings?.faStartDate ?? null, to: date }, projectId);
+    await audit(a.user.id, "project.fa_start_date", { from, to: date, shiftedTasks: moved }, projectId);
     refresh(projectId, "fa");
-  }, "项目开始日已更新");
+    return { moved };
+  }, shift ? "项目开始日已更新，计划开始日已同步平移" : "项目开始日已更新");
 }

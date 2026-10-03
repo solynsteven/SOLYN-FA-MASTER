@@ -17,7 +17,7 @@ import { ItemDrawer } from "./ItemDrawer";
 import { trackerSummary, isOverdue as overdueOf } from "@/lib/tracker-stats";
 import { fmtDateTime } from "@/lib/format";
 import type { TField, TItem, TMember } from "./types";
-import { deleteItemsAction } from "@/app/p/[projectId]/[module]/actions";
+import { deleteItemsAction, updateItemAction } from "@/app/p/[projectId]/[module]/actions";
 
 type Props = {
   projectId: string; moduleKey: "fa" | "dd" | "qa"; moduleLabel: string; itemLabel: string;
@@ -43,6 +43,9 @@ export function TrackerClient(p: Props) {
   const [importing, setImporting] = useState(false);
   const [exportMenu, setExportMenu] = useState(false);
   const bulk = useAction();
+  const inline = useAction();
+  // FA：计划开始日可在列表中直接选择 / 输入（手工日期字段）
+  const inlineDate = (f: TField) => canManage && p.moduleKey === "fa" && f.role === "start_date" && f.type === "date" && !f.formula;
 
   const storeKey = `solyn.cols.${p.projectId}.${p.moduleKey}`;
   useEffect(() => {
@@ -81,7 +84,7 @@ export function TrackerClient(p: Props) {
   const toggleCollapse = (code: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(code)) n.delete(code); else n.add(code); return n; });
   const issueCount = H.enabled ? items.filter((i) => H.issueOf(i)).length : 0;
   const [onlyIssues, setOnlyIssues] = useState(false);
-  const hasPlanFormula = fields.some((f) => f.formula === "fa_plan_start" || f.formula === "fa_plan_end");
+  const hasPlanFormula = fields.some((f) => f.formula === "fa_plan_start" || f.formula === "fa_plan_end" || f.formula === "fa_start_offset");
 
   const isOverdue = (it: TItem) => overdueOf(it, dueF, statusF, today);
 
@@ -253,7 +256,7 @@ export function TrackerClient(p: Props) {
             {canManage && <button className="btn-primary btn-sm" onClick={() => setOpen("new")}><Plus size={14} />新增{p.itemLabel}</button>}
           </div>
         </div>
-        <Alert>{bulk.error}</Alert>
+        <Alert>{bulk.error || inline.error}</Alert>
 
         {items.length === 0 ? (
           <EmptyState
@@ -328,7 +331,14 @@ export function TrackerClient(p: Props) {
                       )}
                       {cols.map((f) => (
                         <td key={f.key} className="td" style={{ maxWidth: f.width, minWidth: Math.min(f.width, 120) }}>
-                          <Cell f={f} v={it.data[f.key]} users={users} overdue={od && f.role === "due_date"} depth={depth} />
+                          {inlineDate(f) ? (
+                            <InlineDate
+                              value={(it.data[f.key] as string) ?? ""}
+                              onSave={(v) => inline.exec(() => updateItemAction(p.projectId, p.moduleKey, it.id, { [f.key]: v || null }), () => router.refresh())}
+                            />
+                          ) : (
+                            <Cell f={f} v={it.data[f.key]} users={users} overdue={od && f.role === "due_date"} depth={depth} />
+                          )}
                           {f.role === "title" && roll && roll.total > 0 && (
                             <div className="mt-1 text-[10px] text-brand-sage" style={{ paddingLeft: Math.max(0, depth - 1) * 14 + (depth >= 2 ? 18 : 0) }}>
                               下级 {roll.total} 项 · 已完成 {roll.done}{roll.excluded ? ` · 中止 ${roll.excluded}` : ""}
@@ -401,5 +411,27 @@ function SortTh({ label, k, sort, onSort, width, sticky }: { label: string; k: s
         {on && (sort!.dir === 1 ? <ArrowUp size={11} /> : <ArrowDown size={11} />)}
       </span>
     </th>
+  );
+}
+
+/** 列表内日期编辑：失焦或回车时保存；Esc 还原 */
+function InlineDate({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const commit = () => { if (v !== value) onSave(v); };
+  return (
+    <input
+      type="date"
+      value={v}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") setV(value);
+      }}
+      title="计划开始日（手工填写）：開始D+ 与计划完成日将自动重算"
+      className="w-[118px] rounded border border-transparent bg-transparent px-1 py-0.5 font-num text-xs text-brand-paper [color-scheme:dark] hover:border-line-strong focus:border-brand-mid focus:bg-ink-850 focus:outline-none"
+    />
   );
 }
