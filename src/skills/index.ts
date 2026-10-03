@@ -19,12 +19,32 @@ export const faPmImport: ImportSkill = {
  * solyn-skill-fa-dd-import —— 《DD材料信息收集进度表》（資料依頼リスト，材料前缀编码版）
  * 规则说明见 skills/solyn-skill-fa-dd-import/SKILL.md
  */
+/** 大分类名称 → 大类代码（与 Aoyama v5 模板的代码体系一致；无法识别时用 Gen） */
+const MAJOR_RULES: [RegExp, string][] = [
+  [/公司基本|会社基礎|组织|組織/, "Bas"],
+  [/财务|財務|会计|会計|税务|税務/, "Fin"],
+  [/事业|事業|营业|営業/, "Biz"],
+  [/生产|生産|技术|技術|设备|設備/, "Ops"],
+  [/资产|資産|不动产|不動産/, "Ass"],
+  [/劳动安全|労働安全|卫生|衛生/, "Saf"],
+  [/人事|劳务|労務/, "HR"],
+  [/许认可|許認可|环境|環境/, "Env"],
+  [/法务|法務|合规|コンプライアンス/, "Leg"],
+  [/IT|系统|システム/i, "IT"],
+  [/IPO|上市|上場/i, "IPO"],
+  [/交易|ディール|本件固有/, "Deal"],
+  [/出租车|タクシー/, "Inds"],
+];
+function majorFromCategory(cat: string) {
+  return MAJOR_RULES.find(([re]) => re.test(cat))?.[1] ?? "Gen";
+}
+
 export const ddImport: ImportSkill = {
   name: "solyn-skill-fa-dd-import",
   moduleKey: "dd",
   title: "DD材料信息收集进度表",
   preferredSheets: ["資料依頼リスト", "资料请求清单", "DD List"],
-  headerHints: ["材料前缀编码", "分类编码", "材料分类名称", "大类代码", "中类代码", "顺序码", "资料名称", "对象期间", "必要度", "提出状态", "请求日", "接收日", "提供者", "备注"],
+  headerHints: ["材料前缀编码", "分类编码", "材料分类名称", "大分类", "大类代码", "中类代码", "顺序码", "资料名称", "对象期间", "必要度", "提出状态", "请求日", "接收日", "提供者", "备注", "关联任务"],
   cellRule: (key, value, cell) => {
     // 「变更／改訂」：v3 新增的行只有绿色底纹、没有文字 → 按凡例补全
     if (key === "revision" && (value === null || value === "")) {
@@ -35,6 +55,14 @@ export const ddImport: ImportSkill = {
   },
   // 顺序码为公式 =IF(E5=E4,F4+1,1)：缓存值缺失时按同一规则补全
   rowRule: (d, prev) => {
+    // 旧版 / 简化版清单（只有 No.、大分类，没有 分类编码·大类代码·中类代码）：按大分类推导编码组成部分
+    if (!d.cat_code || !d.major_code || !d.minor_code) {
+      const cat = String(d.category ?? "");
+      const n = cat.match(/^\s*(\d+)\s*[.．、]/)?.[1];
+      if (!d.cat_code && n) d.cat_code = `S${Number(n)}`;
+      if (!d.major_code && cat) d.major_code = majorFromCategory(cat);
+      if (!d.minor_code && cat) d.minor_code = "Gen";
+    }
     if (d.seq === null || d.seq === undefined || d.seq === "") {
       d.seq = prev && prev.minor_code === d.minor_code && prev.cat_code === d.cat_code ? (Number(prev.seq) || 0) + 1 : 1;
     }

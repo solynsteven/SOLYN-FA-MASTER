@@ -98,6 +98,7 @@ export const DEFAULT_FIELDS: Record<TrackerModuleKey, Tpl[]> = {
     { key: "provider", label: "提供者·担当／提供者・担当", type: "text", role: "owner", width: 130, aliases: ["提供者", "担当", "提供者·担当"] },
     { key: "location", label: "保存位置·文件名／保存場所・ファイル名", type: "text", width: 200, aliases: ["保存位置", "保存場所", "文件名"] },
     { key: "remark", label: "备注／備考", type: "longtext", width: 320, aliases: ["备注", "備考"] },
+    { key: "related_task", label: "关联任务／関連タスク", type: "text", width: 96, aliases: ["关联任务", "関連タスク", "关联任务编号", "任务编号"] },
     { key: "revision", label: "变更／改訂", type: "select", options: ["新規追加 v3／v3新增", "内容改訂 v3／v3修订", "新規追加 v4／v4新增"], width: 140, aliases: ["变更", "改訂"] },
   ],
   // 《QA问答进度跟踪表 List v1》「Q&A」A〜M 列

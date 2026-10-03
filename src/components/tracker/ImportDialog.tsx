@@ -191,7 +191,9 @@ export function ImportDialog({ projectId, moduleKey, onClose }: { projectId: str
             )}
             {tab === "warn" && <List rows={pv.warnings.map((w, i) => [String(i + 1), w])} empty="没有提示" />}
           </div>
-          {nothing && <Alert kind="info">文件与网站数据一致，没有需要写入的变更。</Alert>}
+          {nothing && (pv.counts.rows === 0
+            ? <Alert>没有读到可导入的数据行{pv.counts.warnings ? `（${pv.counts.warnings} 行被跳过，原因见「提示」）` : ""}。请确认上传的是正确的模板。</Alert>
+            : <Alert kind="info">文件与网站数据一致，没有需要写入的变更。</Alert>)}
           <Alert>{a.error}</Alert>
         </div>
       )}
