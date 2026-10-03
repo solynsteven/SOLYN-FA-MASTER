@@ -57,6 +57,13 @@
       "when": 1790992583079,
       "tag": "0007_fa_manual_plan_start",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790993296962,
+      "tag": "0008_fa_status_after_owner",
+      "breakpoints": true
     }
   ]
 }
