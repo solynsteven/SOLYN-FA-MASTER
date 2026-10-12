@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Lock, FileText, Trash2 } from "lucide-react";
-import { upload as blobUpload } from "@vercel/blob/client";
+import { upload as blobUpload, uploadPresigned } from "@vercel/blob/client";
 import { Alert, Modal, Toggle, useAction, cn } from "@/components/ui";
 import { VDR_GROUPS, LEVELS, levelMeta, fmtSize, VDR_ACTION_LABEL } from "@/lib/vdr/constants";
 import { makeResolver } from "@/lib/vdr/resolve";
@@ -105,8 +105,8 @@ export { createFolder, renameFolder };
 
 /* ------------------------------ 上传 ------------------------------ */
 
-export function UploadDialog({ projectId, folder, storage, blobAccess, faCodes, ddCodes, onClose }: {
-  projectId: string; folder: VFolder; storage: "blob" | "local" | "none"; blobAccess: "public" | "private"; faCodes: CodeOpt[]; ddCodes: CodeOpt[]; onClose: () => void;
+export function UploadDialog({ projectId, folder, storage, blobAccess, blobAuth, faCodes, ddCodes, onClose }: {
+  projectId: string; folder: VFolder; storage: "blob" | "local" | "none"; blobAccess: "public" | "private"; blobAuth: "token" | "oidc" | null; faCodes: CodeOpt[]; ddCodes: CodeOpt[]; onClose: () => void;
 }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
@@ -121,13 +121,22 @@ export function UploadDialog({ projectId, folder, storage, blobAccess, faCodes, 
     setBusy(true);
     setError(null);
     let ok = 0;
+    if (storage === "blob") {
+      // 先自检存储配置与认证，失败时直接显示具体原因（SDK 本身只会报「上传失败」）
+      const pr = await fetch(`/p/${projectId}/vdr/upload`).then((r) => r.json()).catch(() => null) as { ok: boolean; error?: string } | null;
+      if (!pr?.ok) {
+        setError(pr?.error ?? "无法连接上传服务，请稍后重试");
+        setBusy(false);
+        return;
+      }
+    }
     for (const file of files) {
       try {
         if (storage === "blob") {
           // 存储路径只用 ASCII（文件名原文另存数据库），避免中日文、全角符号在存储路径中出问题
           const ext = (file.name.match(/\.([A-Za-z0-9]{1,10})$/)?.[1] ?? "bin").toLowerCase();
           const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          const r = await blobUpload(`vdr/${projectId}/${id}.${ext}`, file, {
+          const r = await (blobAuth === "oidc" ? uploadPresigned : blobUpload)(`vdr/${projectId}/${id}.${ext}`, file, {
             access: blobAccess,
             contentType: file.type || undefined,
             handleUploadUrl: `/p/${projectId}/vdr/upload`,

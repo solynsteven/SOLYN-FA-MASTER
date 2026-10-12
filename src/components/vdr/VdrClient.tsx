@@ -20,7 +20,7 @@ import type { VFolder, VFile, VPerm, VMember, CodeOpt, Me } from "./types";
 export type { VFolder, VFile };
 
 type Props = {
-  projectId: string; canManage: boolean; storage: "blob" | "local" | "none"; blobAccess: "public" | "private"; me: Me;
+  projectId: string; canManage: boolean; storage: "blob" | "local" | "none"; blobAccess: "public" | "private"; blobAuth: "token" | "oidc" | null; me: Me;
   folders: VFolder[]; files: VFile[]; perms: VPerm[]; members: VMember[]; faCodes: CodeOpt[]; ddCodes: CodeOpt[];
 };
 
@@ -287,7 +287,7 @@ export function VdrClient(p: Props) {
       {dialog?.k === "phase" && <PhaseDialog projectId={projectId} phase={dialog.phase} faCodes={p.faCodes} onClose={() => setDialog(null)} />}
       {dialog?.k === "newFolder" && cur && <NameDialog title={`在「${cur.name}」下新建目录`} onSave={(n) => createFolder(projectId, cur.id, n)} onClose={() => setDialog(null)} />}
       {dialog?.k === "rename" && <NameDialog title="重命名" initial={dialog.folder.name} onSave={(n) => renameFolder(projectId, dialog.folder.id, n)} onClose={() => setDialog(null)} />}
-      {dialog?.k === "upload" && cur && <UploadDialog projectId={projectId} folder={cur} storage={p.storage} blobAccess={p.blobAccess} faCodes={p.faCodes} ddCodes={p.ddCodes} onClose={() => setDialog(null)} />}
+      {dialog?.k === "upload" && cur && <UploadDialog projectId={projectId} folder={cur} storage={p.storage} blobAccess={p.blobAccess} blobAuth={p.blobAuth} faCodes={p.faCodes} ddCodes={p.ddCodes} onClose={() => setDialog(null)} />}
       {dialog?.k === "edit" && <FileEditDialog projectId={projectId} file={dialog.file} faCodes={p.faCodes} ddCodes={p.ddCodes} onClose={() => setDialog(null)} />}
       {dialog?.k === "perm" && <PermDialog projectId={projectId} target={dialog.target} folders={p.folders} perms={p.perms} members={p.members} onClose={() => setDialog(null)} />}
       {dialog?.k === "unlock" && <UnlockDialog projectId={projectId} phase={dialog.phase} onClose={() => setDialog(null)} />}

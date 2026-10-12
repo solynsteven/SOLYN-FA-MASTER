@@ -4,7 +4,7 @@ import { users, trackerItems } from "@/db/schema";
 import { requireProject } from "@/lib/auth";
 import { listProjectMembers, listFields } from "@/lib/queries";
 import { loadViewer, loadVdr, makeResolver, faTaskStatuses, phaseIsOpen, isPhaseUnlocked } from "@/lib/vdr/access";
-import { storageMode, blobAccess } from "@/lib/vdr/storage";
+import { storageMode, blobAccess, blobAuth } from "@/lib/vdr/storage";
 import { previewKind } from "@/lib/vdr/constants";
 import { PageHeader } from "@/components/PageHeader";
 import { VdrClient, type VFolder, type VFile } from "@/components/vdr/VdrClient";
@@ -90,6 +90,7 @@ export default async function VdrPage({ params }: { params: Promise<{ projectId:
         canManage={canManage}
         storage={storageMode()}
         blobAccess={blobAccess}
+        blobAuth={blobAuth()}
         me={{ id: user.id, name: user.name, group: viewer.group, organization: viewer.organization }}
         folders={vFolders}
         files={vFiles}

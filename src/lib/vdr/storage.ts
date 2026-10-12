@@ -21,12 +21,43 @@ export function blobToken(): string | undefined {
   return undefined;
 }
 
+/**
+ * 新版 Vercel Blob 连接（2026 起）不再注入读写令牌，而是注入 BLOB_STORE_ID + BLOB_WEBHOOK_PUBLIC_KEY，
+ * 服务器通过 Vercel OIDC 身份访问存储。自定义前缀时取任一以 _STORE_ID 结尾、值为 store_ 开头的变量
+ */
+export function blobStoreId(): string | undefined {
+  if (process.env.BLOB_STORE_ID) return process.env.BLOB_STORE_ID;
+  for (const [k, v] of Object.entries(process.env)) if (k.endsWith("_STORE_ID") && v?.startsWith("store_")) return v;
+  return undefined;
+}
+
+export function blobWebhookKey(): string | undefined {
+  if (process.env.BLOB_WEBHOOK_PUBLIC_KEY) return process.env.BLOB_WEBHOOK_PUBLIC_KEY;
+  for (const [k, v] of Object.entries(process.env)) if (k.endsWith("_WEBHOOK_PUBLIC_KEY") && v) return v;
+  return undefined;
+}
+
+/** 认证方式：token = 读写令牌（旧版连接）；oidc = 存储 ID + Vercel OIDC（新版连接） */
+export function blobAuth(): "token" | "oidc" | null {
+  if (blobToken()) return "token";
+  if (blobStoreId()) return "oidc";
+  return null;
+}
+
+/** 传给 SDK 的凭据参数 */
+export function blobCreds(): { token?: string; storeId?: string } {
+  const token = blobToken();
+  if (token) return { token };
+  const storeId = blobStoreId();
+  return storeId ? { storeId } : {};
+}
+
 /** Vercel 上函数文件系统只读，不能退回本地存储 */
 export const onVercel = () => !!process.env.VERCEL;
 
 /** blob = Vercel Blob；local = 本地开发目录；none = 部署在 Vercel 但未连接 Blob（无法上传） */
 export function storageMode(): "blob" | "local" | "none" {
-  if (blobToken()) return "blob";
+  if (blobAuth()) return "blob";
   return onVercel() ? "none" : "local";
 }
 
@@ -47,7 +78,7 @@ export async function readStored(storage: "blob" | "local", key: string): Promis
     if (!p.startsWith(LOCAL_DIR())) throw new Error("非法路径");
     return fs.readFile(p);
   }
-  const r = await get(key, { access: blobAccess, useCache: false, token: blobToken() });
+  const r = await get(key, { access: blobAccess, useCache: false, ...blobCreds() });
   if (!r || r.statusCode !== 200 || !r.stream) throw new Error("文件在存储中不存在");
   const chunks: Uint8Array[] = [];
   const reader = r.stream.getReader();
@@ -61,7 +92,7 @@ export async function readStored(storage: "blob" | "local", key: string): Promis
 
 export async function streamStored(storage: "blob" | "local", key: string): Promise<ReadableStream<Uint8Array> | Buffer> {
   if (storage === "local") return readStored(storage, key);
-  const r = await get(key, { access: blobAccess, useCache: false, token: blobToken() });
+  const r = await get(key, { access: blobAccess, useCache: false, ...blobCreds() });
   if (!r || r.statusCode !== 200 || !r.stream) throw new Error("文件在存储中不存在");
   return r.stream;
 }
@@ -71,9 +102,9 @@ export async function deleteStored(storage: "blob" | "local", key: string) {
     await fs.rm(path.join(LOCAL_DIR(), key), { force: true });
     return;
   }
-  await del(key, { token: blobToken() });
+  await del(key, { ...blobCreds() });
 }
 
 export async function headStored(key: string) {
-  return head(key, { token: blobToken() });
+  return head(key, { ...blobCreds() });
 }
