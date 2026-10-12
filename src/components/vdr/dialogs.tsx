@@ -105,8 +105,8 @@ export { createFolder, renameFolder };
 
 /* ------------------------------ 上传 ------------------------------ */
 
-export function UploadDialog({ projectId, folder, storage, faCodes, ddCodes, onClose }: {
-  projectId: string; folder: VFolder; storage: "blob" | "local"; faCodes: CodeOpt[]; ddCodes: CodeOpt[]; onClose: () => void;
+export function UploadDialog({ projectId, folder, storage, blobAccess, faCodes, ddCodes, onClose }: {
+  projectId: string; folder: VFolder; storage: "blob" | "local" | "none"; blobAccess: "public" | "private"; faCodes: CodeOpt[]; ddCodes: CodeOpt[]; onClose: () => void;
 }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
@@ -124,8 +124,12 @@ export function UploadDialog({ projectId, folder, storage, faCodes, ddCodes, onC
     for (const file of files) {
       try {
         if (storage === "blob") {
-          const r = await blobUpload(`vdr/${projectId}/${file.name}`, file, {
-            access: "private",
+          // 存储路径只用 ASCII（文件名原文另存数据库），避免中日文、全角符号在存储路径中出问题
+          const ext = (file.name.match(/\.([A-Za-z0-9]{1,10})$/)?.[1] ?? "bin").toLowerCase();
+          const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          const r = await blobUpload(`vdr/${projectId}/${id}.${ext}`, file, {
+            access: blobAccess,
+            contentType: file.type || undefined,
             handleUploadUrl: `/p/${projectId}/vdr/upload`,
             onUploadProgress: (e) => setProgress((p) => ({ ...p, [file.name]: e.percentage })),
           });
@@ -138,7 +142,7 @@ export function UploadDialog({ projectId, folder, storage, faCodes, ddCodes, onC
           Object.entries(meta).forEach(([k, v]) => fd.set(k, v));
           setProgress((p) => ({ ...p, [file.name]: 30 }));
           const r = await fetch(`/p/${projectId}/vdr/upload-local`, { method: "POST", body: fd });
-          if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "上传失败");
+          if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? `服务器返回 ${r.status}`);
         }
         setProgress((p) => ({ ...p, [file.name]: 100 }));
         ok++;
@@ -155,8 +159,11 @@ export function UploadDialog({ projectId, folder, storage, faCodes, ddCodes, onC
 
   return (
     <Modal open onClose={() => !busy && onClose()} width="max-w-2xl" title={<span className="flex items-center gap-2"><Upload size={15} />上传到「{folder.name}」</span>}
-      footer={<><button className="btn-secondary" disabled={busy} onClick={onClose}>取消</button><button className="btn-primary" disabled={busy || !files.length} onClick={start}>{busy ? `上传中 ${done}/${files.length}…` : `上传 ${files.length || ""} 个文件`}</button></>}>
+      footer={<><button className="btn-secondary" disabled={busy} onClick={onClose}>取消</button><button className="btn-primary" disabled={busy || !files.length || storage === "none"} onClick={start}>{busy ? `上传中 ${done}/${files.length}…` : `上传 ${files.length || ""} 个文件`}</button></>}>
       <div className="space-y-4">
+        {storage === "none" && (
+          <Alert>尚未配置文件存储，暂时无法上传。请在 Vercel 项目 → Storage 中创建 Blob 存储（Access 选 Private），Connect 到本项目后 Redeploy。</Alert>
+        )}
         <button type="button" onClick={() => input.current?.click()} onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); setFiles([...files, ...Array.from(e.dataTransfer.files)]); }}
           className="flex w-full flex-col items-center rounded-lg border border-dashed border-line-strong bg-ink-950/50 px-6 py-6 hover:border-brand-sage">

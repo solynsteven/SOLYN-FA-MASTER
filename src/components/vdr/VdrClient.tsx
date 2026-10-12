@@ -20,7 +20,7 @@ import type { VFolder, VFile, VPerm, VMember, CodeOpt, Me } from "./types";
 export type { VFolder, VFile };
 
 type Props = {
-  projectId: string; canManage: boolean; storage: "blob" | "local"; me: Me;
+  projectId: string; canManage: boolean; storage: "blob" | "local" | "none"; blobAccess: "public" | "private"; me: Me;
   folders: VFolder[]; files: VFile[]; perms: VPerm[]; members: VMember[]; faCodes: CodeOpt[]; ddCodes: CodeOpt[];
 };
 
@@ -128,6 +128,10 @@ export function VdrClient(p: Props) {
   );
 
   return (
+    <>
+    {p.canManage && p.storage === "none" && (
+      <div className="mb-4"><Alert>尚未配置文件存储，暂时无法上传文件。请在 Vercel 项目 → Storage → Create → Blob（Access 选 Private），Connect 到本项目，然后 Redeploy。</Alert></div>
+    )}
     <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
       {/* 左侧：目录树 */}
       <aside className="card flex max-h-[calc(100vh-170px)] flex-col overflow-hidden">
@@ -283,12 +287,13 @@ export function VdrClient(p: Props) {
       {dialog?.k === "phase" && <PhaseDialog projectId={projectId} phase={dialog.phase} faCodes={p.faCodes} onClose={() => setDialog(null)} />}
       {dialog?.k === "newFolder" && cur && <NameDialog title={`在「${cur.name}」下新建目录`} onSave={(n) => createFolder(projectId, cur.id, n)} onClose={() => setDialog(null)} />}
       {dialog?.k === "rename" && <NameDialog title="重命名" initial={dialog.folder.name} onSave={(n) => renameFolder(projectId, dialog.folder.id, n)} onClose={() => setDialog(null)} />}
-      {dialog?.k === "upload" && cur && <UploadDialog projectId={projectId} folder={cur} storage={p.storage} faCodes={p.faCodes} ddCodes={p.ddCodes} onClose={() => setDialog(null)} />}
+      {dialog?.k === "upload" && cur && <UploadDialog projectId={projectId} folder={cur} storage={p.storage} blobAccess={p.blobAccess} faCodes={p.faCodes} ddCodes={p.ddCodes} onClose={() => setDialog(null)} />}
       {dialog?.k === "edit" && <FileEditDialog projectId={projectId} file={dialog.file} faCodes={p.faCodes} ddCodes={p.ddCodes} onClose={() => setDialog(null)} />}
       {dialog?.k === "perm" && <PermDialog projectId={projectId} target={dialog.target} folders={p.folders} perms={p.perms} members={p.members} onClose={() => setDialog(null)} />}
       {dialog?.k === "unlock" && <UnlockDialog projectId={projectId} phase={dialog.phase} onClose={() => setDialog(null)} />}
       {dialog?.k === "log" && <LogDialog projectId={projectId} folder={dialog.folder} onClose={() => setDialog(null)} />}
       {viewing && <Viewer projectId={projectId} file={viewing} watermark={watermark} onClose={() => setViewing(null)} />}
     </div>
+    </>
   );
 }

@@ -1,15 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { getProjectAccess } from "@/lib/auth";
+import { blobToken, STORAGE_MISSING } from "@/lib/vdr/storage";
 
 export const runtime = "nodejs";
 
 /** Vercel Blob 浏览器直传：服务器只负责鉴权并签发一次性上传令牌 */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
+  const token = blobToken();
+  if (!token) return NextResponse.json({ error: STORAGE_MISSING }, { status: 400 });
   const body = (await req.json()) as HandleUploadBody;
   try {
     const json = await handleUpload({
+      token,
       body,
       request: req,
       onBeforeGenerateToken: async (pathname) => {

@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { vdrFiles, vdrFolders, trackerItems } from "@/db/schema";
 import { getProjectAccess } from "@/lib/auth";
-import { saveLocal, storageMode } from "@/lib/vdr/storage";
+import { saveLocal, storageMode, STORAGE_MISSING } from "@/lib/vdr/storage";
 import { logVdr } from "@/lib/vdr/events";
 
 export const runtime = "nodejs";
@@ -14,7 +14,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
   const { projectId } = await params;
   const a = await getProjectAccess(projectId);
   if (!a || !a.canManage || !a.enabledModules.has("vdr")) return NextResponse.json({ error: "仅项目管理员可上传文件" }, { status: 403 });
-  if (storageMode() !== "local") return NextResponse.json({ error: "已启用 Vercel Blob，请使用直传" }, { status: 400 });
+  const mode = storageMode();
+  if (mode === "none") return NextResponse.json({ error: STORAGE_MISSING }, { status: 400 });
+  if (mode !== "local") return NextResponse.json({ error: "已启用 Vercel Blob，请刷新页面后重试" }, { status: 400 });
   const fd = await req.formData();
   const file = fd.get("file");
   const folderId = String(fd.get("folderId") ?? "");
