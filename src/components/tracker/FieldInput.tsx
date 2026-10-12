@@ -1,6 +1,7 @@
 "use client";
 
 import type { TField, TMember } from "./types";
+import { FolderSelect } from "./vdr-folders";
 
 export function FieldInput({
   f, value, onChange, disabled, members,
@@ -58,6 +59,8 @@ export function FieldInput({
           <option value="0">否</option>
         </select>
       );
+    case "vdrfolder":
+      return <FolderSelect value={value} onChange={onChange} disabled={disabled} />;
     case "user":
       return (
         <select className="input" value={String(v)} disabled={disabled} onChange={(e) => onChange(e.target.value || null)}>

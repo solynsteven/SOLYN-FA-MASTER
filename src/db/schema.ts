@@ -72,7 +72,7 @@ export const projectModules = pgTable(
 /* ------------------------------------------------------------------ */
 
 export type FieldType =
-  | "text" | "longtext" | "number" | "percent" | "date" | "select" | "multiselect" | "boolean" | "user";
+  | "text" | "longtext" | "number" | "percent" | "date" | "select" | "multiselect" | "boolean" | "user" | "vdrfolder";
 
 /** 字段语义角色：导出 PDF 报告、项目首页统计会按角色找到对应字段 */
 export type FieldConfig = { levelParents?: Record<string, string | null> };

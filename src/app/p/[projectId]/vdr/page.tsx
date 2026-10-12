@@ -12,8 +12,9 @@ import { VdrClient, type VFolder, type VFile } from "@/components/vdr/VdrClient"
 export const metadata = { title: "VDR" };
 export const dynamic = "force-dynamic";
 
-export default async function VdrPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function VdrPage({ params, searchParams }: { params: Promise<{ projectId: string }>; searchParams: Promise<{ folder?: string }> }) {
   const { projectId } = await params;
+  const { folder: initialFolder } = await searchParams;
   const { project, user, canManage } = await requireProject(projectId, { module: "vdr" });
   const viewer = await loadViewer(projectId, user.id, canManage);
   const [{ folders, files, perms }, taskStatus] = await Promise.all([loadVdr(projectId), faTaskStatuses(projectId)]);
@@ -91,6 +92,7 @@ export default async function VdrPage({ params }: { params: Promise<{ projectId:
         storage={storageMode()}
         blobAccess={blobAccess}
         blobAuth={blobAuth()}
+        initialFolder={initialFolder ?? null}
         me={{ id: user.id, name: user.name, group: viewer.group, organization: viewer.organization }}
         folders={vFolders}
         files={vFiles}

@@ -16,8 +16,8 @@ const ACTION: Record<string, { l: string; t: "mid" | "danger" | "outline" | "gre
   create: { l: "新增", t: "green" }, update: { l: "修改", t: "mid" }, delete: { l: "删除", t: "danger" }, restore: { l: "恢复", t: "outline" },
 };
 
-export function HistoryClient({ projectId, moduleKey, canManage, fields, rows }: {
-  projectId: string; moduleKey: string; canManage: boolean; fields: { key: string; label: string; type: string }[]; rows: R[];
+export function HistoryClient({ projectId, moduleKey, canManage, fields, rows, folderPaths = {} }: {
+  projectId: string; moduleKey: string; canManage: boolean; fields: { key: string; label: string; type: string }[]; rows: R[]; folderPaths?: Record<string, string>;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<string>("");
@@ -54,9 +54,9 @@ export function HistoryClient({ projectId, moduleKey, canManage, fields, rows }:
                     {Object.entries(r.changes).map(([k, c]) => (
                       <div key={k}>
                         <span className="text-brand-sage">{label(k)}：</span>
-                        <span className="text-brand-sage/70 line-through decoration-brand-sage/40">{displayValue(type(k), c.from) || "（空）"}</span>
+                        <span className="text-brand-sage/70 line-through decoration-brand-sage/40">{(type(k) === "vdrfolder" ? folderPaths[String(c.from)] ?? (c.from ? String(c.from) : "") : displayValue(type(k), c.from)) || "（空）"}</span>
                         <span className="mx-1 text-brand-sage">→</span>
-                        <span className="text-brand-mist">{displayValue(type(k), c.to) || "（空）"}</span>
+                        <span className="text-brand-mist">{(type(k) === "vdrfolder" ? folderPaths[String(c.to)] ?? (c.to ? String(c.to) : "") : displayValue(type(k), c.to)) || "（空）"}</span>
                       </div>
                     ))}
                   </div>

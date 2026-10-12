@@ -8,6 +8,7 @@ import { checkHierarchy, levelForDepth, parentCodeOf, parseCode } from "@/lib/hi
 import { Alert, ConfirmButton, Drawer, cn, useAction } from "@/components/ui";
 import { FieldInput } from "./FieldInput";
 import { displayValue, isEqualValue } from "@/lib/fields";
+import { useVdrFolders } from "./vdr-folders";
 import { fmtDateTime } from "@/lib/format";
 import type { ActionResult } from "@/lib/action";
 import { FORMULAS } from "@/lib/formulas";
@@ -24,6 +25,7 @@ export function ItemDrawer({
   projectId: string; moduleKey: string; fields: TField[]; item: TItem | null; members: TMember[]; canManage: boolean;
   onClose: () => void; titleLabel: string; hierarchy?: HierInfo; onOpenItem?: (it: TItem) => void;
 }) {
+  const { folders: vdrFolders } = useVdrFolders();
   const router = useRouter();
   const isNew = !item;
   const [tab, setTab] = useState<"detail" | "history">("detail");
@@ -237,7 +239,7 @@ export function ItemDrawer({
                     <div className="mt-2 space-y-1 rounded-md border border-line bg-ink-950/60 p-2.5">
                       {Object.entries(e.changes).map(([k, c]) => {
                         const f = fields.find((x) => x.key === k);
-                        const fmt = (x: unknown) => displayValue(f?.type ?? "text", x, users) || "（空）";
+                        const fmt = (x: unknown) => (f?.type === "vdrfolder" ? vdrFolders.find((v) => v.id === x)?.path ?? (x ? String(x) : "") : displayValue(f?.type ?? "text", x, users)) || "（空）";
                         return (
                           <div key={k} className="grid grid-cols-[96px_1fr] gap-2 text-xs">
                             <span className="truncate text-brand-sage">{f?.label ?? k}</span>

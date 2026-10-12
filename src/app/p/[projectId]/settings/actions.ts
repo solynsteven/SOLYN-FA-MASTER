@@ -95,7 +95,7 @@ export async function removeMember(projectId: string, userId: string) {
 
 /* ------------------------------- 字段 ------------------------------- */
 
-const TYPES = ["text", "longtext", "number", "percent", "date", "select", "multiselect", "boolean", "user"] as const;
+const TYPES = ["text", "longtext", "number", "percent", "date", "select", "multiselect", "boolean", "user", "vdrfolder"] as const;
 const ROLES = ["code", "title", "category", "priority", "status", "owner", "due_date", "start_date", "progress", "access"] as const;
 
 const fieldSchema = z.object({

@@ -7,6 +7,7 @@ import { listFields, listProjectMembers } from "@/lib/queries";
 import { listItemsDerived } from "@/lib/tracker";
 import { seedDefaultFields } from "@/lib/project-service";
 import { qaViewer, filterQa } from "@/lib/qa/access";
+import { vdrFolderPaths, type FolderOpt } from "@/lib/vdr/folder-paths";
 import { PageHeader } from "@/components/PageHeader";
 import { TrackerClient } from "@/components/tracker/TrackerClient";
 import { QaTabs, QaNoAccess } from "@/components/qa/QaTabs";
@@ -20,7 +21,7 @@ const META: Record<TrackerModuleKey, { title: string; desc: string; item: string
 /** FA / DD / Q&A 通用跟踪表页面（服务端） */
 export async function TrackerPage({ projectId, moduleKey }: { projectId: string; moduleKey: TrackerModuleKey }) {
   const mod = moduleDef(moduleKey)!;
-  const { project, canManage } = await requireProject(projectId, { module: moduleKey });
+  const { project, canManage, enabledModules } = await requireProject(projectId, { module: moduleKey });
   const m = META[moduleKey];
   const viewer = moduleKey === "qa" ? await qaViewer(projectId) : null;
   if (moduleKey === "qa" && (!viewer || viewer.rank === 0)) {
@@ -35,6 +36,17 @@ export async function TrackerPage({ projectId, moduleKey }: { projectId: string;
   const fields = await listFields(projectId, moduleKey);
   const [{ items: all, ctx }, members] = await Promise.all([listItemsDerived(projectId, moduleKey, fields), listProjectMembers(projectId)]);
   const items = viewer ? filterQa(all, fields, viewer.rank) : all;
+  // 「VDR 文件夹」类型字段：载入文件夹路径；项目用户只拿到已被引用的文件夹（不暴露其它目录名）
+  let folders: FolderOpt[] = [];
+  const vdrEnabled = enabledModules.has("vdr");
+  const folderKeys = fields.filter((f) => f.type === "vdrfolder").map((f) => f.key);
+  if (folderKeys.length && vdrEnabled) {
+    folders = await vdrFolderPaths(projectId);
+    if (!canManage) {
+      const used = new Set(items.flatMap((i) => folderKeys.map((k) => String(i.data[k] ?? ""))));
+      folders = folders.filter((f) => used.has(f.id));
+    }
+  }
   const updaterIds = [...new Set(items.map((i) => i.updatedBy).filter(Boolean))] as string[];
   const updaters = updaterIds.length ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, updaterIds)) : [];
   const uname = new Map(updaters.map((u) => [u.id, u.name]));
@@ -61,6 +73,8 @@ export async function TrackerPage({ projectId, moduleKey }: { projectId: string;
           updatedByName: i.updatedBy ? uname.get(i.updatedBy) ?? null : null,
         }))}
         members={members.map((x) => ({ id: x.userId, name: x.name }))}
+        vdrFolders={folders}
+        vdrEnabled={vdrEnabled}
       />
     </>
   );

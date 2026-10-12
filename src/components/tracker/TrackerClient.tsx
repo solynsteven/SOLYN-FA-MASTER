@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Alert, ConfirmButton, EmptyState, cn, useAction } from "@/components/ui";
 import { ImportDialog } from "./ImportDialog";
+import { VdrFoldersProvider, type FolderOpt } from "./vdr-folders";
 import { StartDateControl } from "./StartDateControl";
 import { useHierarchy } from "./useHierarchy";
 import { compareCode, sortByCode } from "@/lib/code-sort";
@@ -22,6 +23,7 @@ import { deleteItemsAction, updateItemAction } from "@/app/p/[projectId]/[module
 type Props = {
   projectId: string; moduleKey: "fa" | "dd" | "qa"; moduleLabel: string; itemLabel: string;
   fields: TField[]; items: TItem[]; members: TMember[]; canManage: boolean; today: string; startDate: string | null;
+  vdrFolders?: FolderOpt[]; vdrEnabled?: boolean;
 };
 
 const opt = (s: string) => s.replace(/\n/g, " / ");
@@ -43,6 +45,8 @@ export function TrackerClient(p: Props) {
   const [importing, setImporting] = useState(false);
   const [exportMenu, setExportMenu] = useState(false);
   const bulk = useAction();
+  const folderCtx = useMemo(() => ({ projectId: p.projectId, folders: p.vdrFolders ?? [], vdrEnabled: !!p.vdrEnabled }), [p.projectId, p.vdrFolders, p.vdrEnabled]);
+  const folderPath = useMemo(() => new Map((p.vdrFolders ?? []).map((f) => [f.id, f.path])), [p.vdrFolders]);
   const inline = useAction();
   // FA：计划开始日可在列表中直接选择 / 输入（手工日期字段）
   const inlineDate = (f: TField) => canManage && p.moduleKey === "fa" && f.role === "start_date" && f.type === "date" && !f.formula;
@@ -92,7 +96,7 @@ export function TrackerClient(p: Props) {
     let r = codeF ? sortByCode(items, codeF.key) : items;
     if (q.trim()) {
       const s = q.trim().toLowerCase();
-      r = r.filter((it) => Object.values(it.data).some((v) => v !== null && String(Array.isArray(v) ? v.join(" ") : v).toLowerCase().includes(s)));
+      r = r.filter((it) => Object.values(it.data).some((v) => v !== null && String(Array.isArray(v) ? v.join(" ") : folderPath.get(String(v)) ?? v).toLowerCase().includes(s)));
     }
     for (const [k, v] of Object.entries(filters)) {
       if (!v) continue;
@@ -115,7 +119,7 @@ export function TrackerClient(p: Props) {
     }
     return r;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, q, filters, onlyOverdue, onlyIssues, sort, fields, H]);
+  }, [items, q, filters, onlyOverdue, onlyIssues, sort, fields, H, folderPath]);
   // 树形折叠：仅在未筛选、未排序时生效
   const treeMode = H.enabled && !sort && !q.trim() && !Object.values(filters).some(Boolean) && !onlyOverdue && !onlyIssues;
   const rows = treeMode && collapsed.size ? view.filter((it) => !H.ancestors(H.codeOf(it)).some((a) => collapsed.has(a))) : view;
@@ -128,6 +132,7 @@ export function TrackerClient(p: Props) {
   const allChecked = view.length > 0 && view.every((i) => selected.has(i.id));
 
   return (
+    <VdrFoldersProvider value={folderCtx}>
     <>
       {hasPlanFormula && <StartDateControl projectId={p.projectId} startDate={p.startDate} canManage={canManage} />}
       {/* KPI */}
@@ -384,6 +389,7 @@ export function TrackerClient(p: Props) {
 
       {importing && <ImportDialog projectId={p.projectId} moduleKey={p.moduleKey} onClose={() => setImporting(false)} />}
     </>
+    </VdrFoldersProvider>
   );
 }
 

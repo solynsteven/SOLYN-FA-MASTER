@@ -11,6 +11,7 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "multiselect", label: "下拉列表（多选）" },
   { value: "boolean", label: "是 / 否" },
   { value: "user", label: "项目成员" },
+  { value: "vdrfolder", label: "VDR 文件夹（关联）" },
 ];
 
 export const FIELD_ROLES: { value: Exclude<FieldRole, null>; label: string; hint: string }[] = [
@@ -96,7 +97,7 @@ export const DEFAULT_FIELDS: Record<TrackerModuleKey, Tpl[]> = {
     { key: "request_date", label: "请求日／依頼日", type: "date", role: "start_date", width: 112, aliases: ["请求日", "依頼日"] },
     { key: "received_date", label: "接收日／受領日", type: "date", width: 112, aliases: ["接收日", "受領日"] },
     { key: "provider", label: "提供者·担当／提供者・担当", type: "text", role: "owner", width: 130, aliases: ["提供者", "担当", "提供者·担当"] },
-    { key: "location", label: "保存位置·文件名／保存場所・ファイル名", type: "text", width: 200, aliases: ["保存位置", "保存場所", "文件名"] },
+    { key: "location", label: "保存位置·文件名／保存場所・ファイル名", type: "vdrfolder", width: 220, aliases: ["保存位置", "保存場所", "文件名", "VDR文件夹", "VDR 文件夹"] },
     { key: "remark", label: "备注／備考", type: "longtext", width: 320, aliases: ["备注", "備考"] },
     { key: "related_task", label: "关联任务／関連タスク", type: "text", width: 96, aliases: ["关联任务", "関連タスク", "关联任务编号", "任务编号"] },
     { key: "revision", label: "变更／改訂", type: "select", options: ["新規追加 v3／v3新增", "内容改訂 v3／v3修订", "新規追加 v4／v4新增"], width: 140, aliases: ["变更", "改訂"] },

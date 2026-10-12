@@ -20,7 +20,7 @@ import type { VFolder, VFile, VPerm, VMember, CodeOpt, Me } from "./types";
 export type { VFolder, VFile };
 
 type Props = {
-  projectId: string; canManage: boolean; storage: "blob" | "local" | "none"; blobAccess: "public" | "private"; blobAuth: "token" | "oidc" | null; me: Me;
+  projectId: string; canManage: boolean; storage: "blob" | "local" | "none"; blobAccess: "public" | "private"; blobAuth: "token" | "oidc" | null; me: Me; initialFolder?: string | null;
   folders: VFolder[]; files: VFile[]; perms: VPerm[]; members: VMember[]; faCodes: CodeOpt[]; ddCodes: CodeOpt[];
 };
 
@@ -30,8 +30,14 @@ export function VdrClient(p: Props) {
   const router = useRouter();
   const { canManage, projectId } = p;
   const [viewAs, setViewAs] = useState<VdrGroup | "">("");
-  const [current, setCurrent] = useState<string | null>(() => p.folders.find((f) => f.isPhase && !f.locked)?.id ?? null);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(p.folders.filter((f) => f.isPhase).map((f) => f.id)));
+  // ?folder=<id>（如从 DD 管理的「保存位置」跳转）：定位并展开到该文件夹；不可见时退回第一个可进入的 Phase
+  const target = p.initialFolder ? p.folders.find((f) => f.id === p.initialFolder) : undefined;
+  const [current, setCurrent] = useState<string | null>(() => target?.id ?? p.folders.find((f) => f.isPhase && !f.locked)?.id ?? null);
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const s = new Set(p.folders.filter((f) => f.isPhase).map((f) => f.id));
+    for (let c = target; c; c = c.parentId ? p.folders.find((f) => f.id === c!.parentId) : undefined) s.add(c.id);
+    return s;
+  });
   const [dialog, setDialog] = useState<
     | { k: "phase"; phase?: VFolder } | { k: "newFolder" } | { k: "rename"; folder: VFolder } | { k: "upload" } | { k: "edit"; file: VFile }
     | { k: "perm"; target: { type: "folder" | "file"; id: string; name: string; folderId: string | null } } | { k: "unlock"; phase: VFolder } | { k: "log"; folder: VFolder } | null

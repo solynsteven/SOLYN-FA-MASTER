@@ -13,6 +13,7 @@ import { touchProject } from "@/lib/project-service";
 import { slugKey } from "@/lib/fields";
 import { checkHierarchy, getLevelParents } from "@/lib/hierarchy";
 import { IMPORT_SKILLS } from "@/skills";
+import { vdrFolderPaths, matchFolder } from "@/lib/vdr/folder-paths";
 import { loadWorkbook } from "@/lib/import/excel";
 import { pickSheet, findHeaderRow, mapColumns, claudeMapColumns, readMeta, readRows, diffRows } from "@/lib/import/engine";
 import type { BatchPayload, ImportPreview } from "@/lib/import/types";
@@ -57,6 +58,20 @@ export async function previewImport(projectId: string, moduleKey: string, fd: Fo
     const meta = readMeta(ws, headerRow, skill);
     const parsed = readRows(ws, headerRow, columns, fields, skill, { startDate: meta.startDate ?? a.project.settings?.faStartDate ?? null });
     warnings.push(...parsed.warnings);
+    // 「VDR 文件夹」字段：按文件夹完整路径或唯一名称识别为文件夹；识别不了的保留原文本并提示
+    const folderFields = fields.filter((f) => f.type === "vdrfolder");
+    if (folderFields.length && parsed.rows.length) {
+      const folders = await vdrFolderPaths(projectId);
+      let miss = 0;
+      for (const r of parsed.rows) for (const f of folderFields) {
+        const v = r.data[f.key];
+        if (typeof v !== "string" || !v.trim() || folders.some((x) => x.id === v)) continue;
+        const id = matchFolder(folders, v);
+        if (id) r.data[f.key] = id;
+        else miss++;
+      }
+      if (miss) warnings.push(`有 ${miss} 个「${folderFields.map((f) => f.label).join("、")}」值未能对应到 VDR 文件夹，已按原文本保留，可在记录中重新选择文件夹`);
+    }
 
     const existing = await db
       .select({ id: trackerItems.id, externalKey: trackerItems.externalKey, data: trackerItems.data })

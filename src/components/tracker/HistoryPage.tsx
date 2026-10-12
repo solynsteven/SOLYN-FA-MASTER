@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { requireProject } from "@/lib/auth";
 import { moduleDef, type TrackerModuleKey } from "@/lib/modules";
 import { listFields } from "@/lib/queries";
+import { vdrFolderPaths } from "@/lib/vdr/folder-paths";
 import { moduleHistory } from "@/lib/tracker";
 import { qaViewer, accessKey, canSee } from "@/lib/qa/access";
 import { PageHeader } from "@/components/PageHeader";
@@ -18,6 +19,7 @@ export async function HistoryPage({ projectId, moduleKey }: { projectId: string;
   // Q&A：只显示当前权限组可见的记录的变更（按变更时的快照判断）
   const ak = accessKey(fields);
   const rows = viewer && !viewer.isManager ? rows0.filter(({ c }) => canSee(viewer.rank, c.snapshot?.[ak])) : rows0;
+  const folderPaths = fields.some((f) => f.type === "vdrfolder") ? Object.fromEntries((await vdrFolderPaths(projectId)).map((f) => [f.id, f.path])) : {};
   const titleKey = fields.find((f) => f.role === "title")?.key;
   const codeKey = fields.find((f) => f.role === "code")?.key;
   return (
@@ -30,6 +32,7 @@ export async function HistoryPage({ projectId, moduleKey }: { projectId: string;
         projectId={projectId}
         moduleKey={moduleKey}
         canManage={canManage}
+        folderPaths={folderPaths}
         fields={fields.map((f) => ({ key: f.key, label: f.label, type: f.type }))}
         rows={rows.map(({ c, actor, seq, deletedAt }) => ({
           id: c.id, itemId: c.itemId, action: c.action, source: c.source, changes: c.changes, actor: actor ?? "—", at: c.createdAt.toISOString(),
