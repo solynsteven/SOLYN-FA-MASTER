@@ -6,6 +6,7 @@ import { loadVdr } from "./access";
 import { todayISO } from "@/lib/format";
 
 const ACCESS = ["view", "print", "download"] as const;
+const FETCH = ["view", "print", "download", "download_watermark", "download_irm", "download_encrypted", "download_original", "irm_open", "irm_print"];
 type Act = (typeof ACCESS)[number];
 const DAY = 86400000;
 
@@ -23,7 +24,9 @@ const dayKey = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/S
 export async function vdrAnalytics(projectId: string) {
   const since = new Date(Date.now() - ANALYTICS.windowDays * DAY);
   const [events, members, vdr] = await Promise.all([
-    db.select().from(vdrEvents).where(and(eq(vdrEvents.projectId, projectId), inArray(vdrEvents.action, [...ACCESS]), gte(vdrEvents.createdAt, since))),
+    db.select().from(vdrEvents).where(and(eq(vdrEvents.projectId, projectId), inArray(vdrEvents.action, FETCH), gte(vdrEvents.createdAt, since)))
+      // 各类下载统一计为“下载”；IRM 文件打开 / 打印分别计为阅览 / 打印
+      .then((rows) => rows.map((e) => ({ ...e, action: e.action.startsWith("download") ? "download" : e.action === "irm_open" ? "view" : e.action === "irm_print" ? "print" : e.action }))),
     db.select({ userId: projectMembers.userId, role: projectMembers.role, group: projectMembers.vdrGroup, org: projectMembers.organization, name: users.name, globalRole: users.globalRole })
       .from(projectMembers).innerJoin(users, eq(users.id, projectMembers.userId)).where(eq(projectMembers.projectId, projectId)),
     loadVdr(projectId, { includeDeleted: true }),
@@ -115,7 +118,8 @@ export async function vdrAnalytics(projectId: string) {
     .sort((a, b) => b.total - a.total);
 
   /* ---------- 权限组 ---------- */
-  const groupRows = ["SEL", "BID1", "BID2", "EXC", "DD"].map((g) => {
+  const groupCodes = [...new Set([...members.map((m) => m.group).filter((g): g is string => !!g && g !== "ADM")])].sort();
+  const groupRows = (groupCodes.length ? groupCodes : ["SEL", "BID1", "BID2", "EXC", "DD"]).map((g) => {
     const rows = events.filter((e) => e.userId && person.get(e.userId)?.group === g && !person.get(e.userId)?.internal);
     return { group: g, total: rows.length, views: rows.filter((e) => e.action === "view").length, prints: rows.filter((e) => e.action === "print").length, downloads: rows.filter((e) => e.action === "download").length, users: new Set(rows.map((e) => e.userId)).size };
   });

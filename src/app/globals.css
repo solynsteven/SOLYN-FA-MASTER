@@ -91,3 +91,36 @@ body {
 }
 button.cite:hover { @apply border-brand-sage bg-brand-green/60 text-brand-paper; }
 .cite-x { @apply border-dashed opacity-60; }
+
+/* ---------------- VDR 安全预览 ---------------- */
+.vdr-nocopy, .vdr-nocopy * { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none; }
+.vdr-page { container-type: size; }
+.vdr-page img { -webkit-user-drag: none; }
+.vdr-textlayer span { position: absolute; color: transparent; white-space: pre; line-height: 1; cursor: text; overflow: hidden; }
+.vdr-textlayer span::selection { background: rgba(63, 110, 88, 0.35); color: transparent; }
+.vdr-doc { font-family: -apple-system, "PingFang SC", "Hiragino Sans", "Noto Sans SC", sans-serif; color: #1b2a24; line-height: 1.65; font-size: 14px; }
+.vdr-doc table { border-collapse: collapse; font-size: 12px; margin: 8px 0; }
+.vdr-doc td, .vdr-doc th { border: 1px solid #d7e0da; padding: 3px 6px; white-space: nowrap; }
+.vdr-doc th { background: #f3f5f3; color: #7c9a8b; font-weight: 400; }
+.vdr-doc .xl { overflow: auto; margin-bottom: 20px; }
+.vdr-doc h1, .vdr-doc h2, .vdr-doc h3 { color: #16362a; font-weight: 600; margin: 14px 0 8px; }
+.vdr-doc p { margin: 6px 0; }
+.vdr-doc img { max-width: 100%; }
+/* Fence View：条纹遮罩，仅鼠标附近圆形区域透出 */
+.vdr-fence {
+  --fx: 50vw; --fy: 40vh; --fr: 120px;
+  background: repeating-linear-gradient(45deg, rgba(8, 18, 14, 0.985) 0 9px, rgba(26, 44, 36, 0.985) 9px 18px);
+  -webkit-mask-image: radial-gradient(circle var(--fr) at var(--fx) var(--fy), transparent 0, transparent calc(var(--fr) - 14px), #000 var(--fr));
+  mask-image: radial-gradient(circle var(--fr) at var(--fx) var(--fy), transparent 0, transparent calc(var(--fr) - 14px), #000 var(--fr));
+}
+@media print { .vdr-fence { display: none !important; } }
+
+/* ---------------- IRM 安全阅读器打印控制：仅在申请到打印额度时允许打印 ---------------- */
+@media print {
+  body.irm-open:not(.vdr-printing) * { visibility: hidden !important; }
+  body.irm-open:not(.vdr-printing)::after { content: "受控文件仅可通过阅读器的「打印」按钮打印（受次数限制）。"; visibility: visible; display: block; padding: 40px; font-size: 16px; color: #000; }
+  body.irm-open.vdr-printing * { visibility: hidden !important; }
+  body.irm-open.vdr-printing .vdr-print-area, body.irm-open.vdr-printing .vdr-print-area * { visibility: visible !important; }
+  body.irm-open.vdr-printing .vdr-print-area { position: absolute !important; left: 0; top: 0; width: 100%; max-height: none !important; overflow: visible !important; background: #fff !important; padding: 0 !important; }
+  body.irm-open.vdr-printing .vdr-page { box-shadow: none !important; page-break-after: always; }
+}

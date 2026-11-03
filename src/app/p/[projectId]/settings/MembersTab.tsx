@@ -5,13 +5,12 @@ import { useRouter } from "next/navigation";
 import { UserPlus, Trash2 } from "lucide-react";
 import { Alert, Badge, ConfirmButton, Modal, useAction } from "@/components/ui";
 import { addMember, updateMemberRole, removeMember, updateMemberVdr } from "./actions";
-import { VDR_GROUPS } from "@/lib/vdr/constants";
 import { fmtDate } from "@/lib/format";
 import { genPassword } from "@/app/admin/users/UsersClient";
 
 type M = { userId: string; name: string; email: string; title: string; role: "project_admin" | "member"; isActive: boolean; joinedAt: string; vdrGroup: string | null; organization: string | null };
 
-export function MembersTab({ projectId, members, meId }: { projectId: string; members: M[]; meId: string }) {
+export function MembersTab({ projectId, members, meId, groups }: { projectId: string; members: M[]; meId: string; groups: { code: string; name: string }[] }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const a = useAction();
@@ -52,7 +51,7 @@ export function MembersTab({ projectId, members, meId }: { projectId: string; me
                     onChange={(e) => a.exec(() => updateMemberVdr(projectId, m.userId, { group: e.target.value || null, organization: m.organization }), () => router.refresh())}
                   >
                     <option value="">未分组</option>
-                    {VDR_GROUPS.map((g) => <option key={g.code} value={g.code}>{g.code} · {g.desc}</option>)}
+                    {groups.map((g) => <option key={g.code} value={g.code}>{g.code} · {g.name}</option>)}
                   </select>
                 </td>
                 <td className="td">

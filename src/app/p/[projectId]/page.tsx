@@ -13,7 +13,8 @@ export const metadata = { title: "项目首页" };
 
 export default async function ProjectHome({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const { project, role, enabledModules } = await requireProject(projectId);
+  const { project, role, enabledModules, external } = await requireProject(projectId);
+  if (external && enabledModules.has("vdr")) redirect(`/p/${projectId}/vdr`);
   if (!enabledModules.has("home")) {
     const first = MODULES.find((m) => enabledModules.has(m.key));
     if (first) redirect(`/p/${projectId}/${first.key}`);

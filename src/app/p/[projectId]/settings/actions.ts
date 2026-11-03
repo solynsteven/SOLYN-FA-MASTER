@@ -1,5 +1,6 @@
 "use server";
 
+import { listGroups } from "@/lib/vdr/groups";
 import bcrypt from "bcryptjs";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -224,7 +225,7 @@ export async function resetFields(projectId: string, moduleKey: string) {
 export async function updateMemberVdr(projectId: string, userId: string, input: { group: string | null; organization: string | null }) {
   return run(async () => {
     const a = await assertProject(projectId, true);
-    const groups = ["ADM", "SEL", "BID1", "BID2", "EXC", "DD"];
+    const groups = (await listGroups(projectId)).map((g) => g.code);
     if (input.group && !groups.includes(input.group)) throw new Error("未知权限组");
     await db.update(projectMembers).set({
       vdrGroup: (input.group || null) as (typeof projectMembers.$inferInsert)["vdrGroup"], organization: input.organization?.trim() || null,

@@ -16,6 +16,10 @@ export const users = pgTable("users", {
   isActive: boolean("is_active").notNull().default(true),
   title: text("title"),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  /** 验证器 App（TOTP）密钥，AES-GCM 加密存储 */
+  mfaSecret: text("mfa_secret"),
+  mfaEnabled: boolean("mfa_enabled").notNull().default(false),
+  mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -50,6 +54,9 @@ export const projectMembers = pgTable(
     vdrGroup: text("vdr_group").$type<VdrGroup>(),
     /** 所属机构（如 买家A公司），用于 VDR 访问分析按买家汇总 */
     organization: text("organization"),
+    /** 成员级访问到期（到点自动无法进入 VDR） */
+    accessExpiresAt: timestamp("access_expires_at", { withTimezone: true }),
+    invitedBy: uuid("invited_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.userId] }), index("pm_user_idx").on(t.userId)],
@@ -217,8 +224,15 @@ export type ApiKey = typeof apiKeys.$inferSelect;
 /*  VDR 虚拟数据室                                                       */
 /* ------------------------------------------------------------------ */
 
-export type VdrGroup = "ADM" | "SEL" | "BID1" | "BID2" | "EXC" | "DD";
-export type VdrLevel = "O" | "P" | "V" | "X";
+/** 权限组代码：内置 ADM / SEL / BID1 / BID2 / EXC / DD / LEGAL / FIN，可自定义 */
+export type VdrGroup = string;
+/** 8 级预设 L0–L7，C = 自定义开关组合 */
+export type VdrLevel = "L0" | "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7" | "C";
+/** 9 个独立权限开关 */
+export type VdrCap = "view" | "preview" | "download" | "print" | "copy" | "annotate" | "upload" | "edit" | "share";
+/** 文档安全策略（目录 / 文件上设置，就近继承；字段为空表示继承） */
+export type VdrSecurity = { fence?: boolean | null; downloadModes?: VdrDownloadMode[] | null; irmExpiryDays?: number | null; irmPrintLimit?: number | null };
+export type VdrDownloadMode = "watermark" | "irm" | "encrypted" | "original";
 
 /** 目录：parent_id 为空且 is_phase = true 的是顶层 Phase 区 */
 export const vdrFolders = pgTable(
@@ -244,6 +258,7 @@ export const vdrFolders = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
     deleteBatch: uuid("delete_batch"),
+    security: jsonb("security").$type<VdrSecurity>(),
   },
   (t) => [index("vf_project_idx").on(t.projectId), index("vf_parent_idx").on(t.parentId)],
 );
@@ -268,6 +283,7 @@ export const vdrFiles = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
     deleteBatch: uuid("delete_batch"),
+    security: jsonb("security").$type<VdrSecurity>(),
   },
   (t) => [index("vfile_project_idx").on(t.projectId), index("vfile_folder_idx").on(t.folderId)],
 );
@@ -283,6 +299,9 @@ export const vdrPermissions = pgTable(
     subjectType: text("subject_type").$type<"group" | "user">().notNull(),
     subject: text("subject").notNull(), // 权限组代码或用户 id
     level: text("level").$type<VdrLevel>().notNull(),
+    caps: jsonb("caps").$type<VdrCap[]>().notNull().default([]),
+    /** 规则到期（如外部分享），过期后视为不存在 */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
     updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -313,6 +332,194 @@ export const vdrEvents = pgTable(
     index("ve_folder_idx").on(t.folderId),
   ],
 );
+
+/* ---------------- VDR 安全：权限组 / 设置 / 邀请 / NDA / IRM / 批注 ---------------- */
+
+export type VdrGroupPolicy = {
+  requireMfa?: boolean;
+  ipAllowlist?: string[]; // IPv4 / IPv6 / CIDR
+  emailDomains?: string[]; // 如 buyer-a.co.jp
+  window?: { days: number[]; start: string; end: string; tz: string } | null; // 访问时段（周一=1 … 周日=7）
+  accessFrom?: string | null; // ISO
+  accessUntil?: string | null; // ISO，到点自动失效
+  maxSessions?: number | null; // 单账号并发会话上限
+};
+
+export const vdrGroups = pgTable(
+  "vdr_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    kind: text("kind").$type<"internal" | "seller" | "buyer" | "advisor" | "custom">().notNull().default("custom"),
+    /** 未设置任何规则时该组的默认权限 */
+    defaultLevel: text("default_level").$type<VdrLevel>().notNull().default("L0"),
+    defaultCaps: jsonb("default_caps").$type<VdrCap[]>().notNull().default([]),
+    policy: jsonb("policy").$type<VdrGroupPolicy>().notNull().default({}),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("vg_project_code").on(t.projectId, t.code)],
+);
+
+export type WatermarkField = "name" | "email" | "org" | "time" | "ip" | "room" | "project" | "confidential";
+export type VdrSettingsData = {
+  watermark?: { fields?: WatermarkField[]; opacity?: number; size?: number; density?: number; customText?: string };
+  download?: { modes?: VdrDownloadMode[]; irmExpiryDays?: number; irmPrintLimit?: number };
+  requireMfa?: boolean;
+};
+
+export const vdrSettings = pgTable("vdr_settings", {
+  projectId: uuid("project_id").primaryKey().references(() => projects.id, { onDelete: "cascade" }),
+  data: jsonb("data").$type<VdrSettingsData>().notNull().default({}),
+  ndaRequired: boolean("nda_required").notNull().default(false),
+  ndaTitle: text("nda_title"),
+  ndaTemplate: text("nda_template"),
+  ndaVersion: integer("nda_version").notNull().default(1),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const vdrInvitations = pgTable(
+  "vdr_invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    name: text("name"),
+    groupCode: text("group_code"),
+    organization: text("organization"),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), // 邀请链接有效期
+    accessExpiresAt: timestamp("access_expires_at", { withTimezone: true }), // 接受后的访问到期
+    status: text("status").$type<"pending" | "accepted" | "revoked">().notNull().default("pending"),
+    /** 外部分享：仅开放某个文件 */
+    shareFileId: uuid("share_file_id"),
+    shareCaps: jsonb("share_caps").$type<VdrCap[]>(),
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedUserId: uuid("accepted_user_id"),
+  },
+  (t) => [index("vinv_project_idx").on(t.projectId), uniqueIndex("vinv_token_uq").on(t.tokenHash)],
+);
+
+export const vdrNdaSignatures = pgTable(
+  "vdr_nda_signatures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    title: text("title").notNull(),
+    signedName: text("signed_name").notNull(),
+    content: text("content").notNull(), // 签署时呈现给用户的全文（已替换动态标签）
+    contentHash: text("content_hash").notNull(), // SHA-256
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("vnda_project_user_idx").on(t.projectId, t.userId)],
+);
+
+export type IrmPolicy = { expiresAt?: string | null; printLimit?: number | null; allowCopy?: boolean };
+export const vdrIrmIssues = pgTable(
+  "vdr_irm_issues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    fileId: uuid("file_id").notNull(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    /** package = 加密受控文件包（.fasec，可远程撤销）；pdf / office = 密码加密文件（仅溯源）；watermark = 普通水印下载记录 */
+    kind: text("kind").$type<"package" | "pdf" | "office" | "watermark">().notNull(),
+    fileName: text("file_name").notNull(),
+    keyEnc: text("key_enc"),
+    passwordEnc: text("password_enc"),
+    policy: jsonb("policy").$type<IrmPolicy>().notNull().default({}),
+    printsUsed: integer("prints_used").notNull().default(0),
+    openCount: integer("open_count").notNull().default(0),
+    lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
+    lastIp: text("last_ip"),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedBy: uuid("revoked_by"),
+    revokeReason: text("revoke_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("virm_project_idx").on(t.projectId, t.createdAt), index("virm_user_idx").on(t.userId)],
+);
+
+export const vdrAnnotations = pgTable(
+  "vdr_annotations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    fileId: uuid("file_id").notNull(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    page: integer("page"),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [index("vann_file_idx").on(t.fileId)],
+);
+
+/* ---------------- 登录安全：会话 / 设备 / 一次性验证码 ---------------- */
+
+export const userSessions = pgTable(
+  "user_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    deviceId: text("device_id"),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    mfa: boolean("mfa").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokeReason: text("revoke_reason"),
+  },
+  (t) => [index("us_user_idx").on(t.userId, t.createdAt)],
+);
+
+export const userDevices = pgTable(
+  "user_devices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    deviceId: text("device_id").notNull(),
+    userAgent: text("user_agent"),
+    firstIp: text("first_ip"),
+    lastIp: text("last_ip"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("ud_user_device").on(t.userId, t.deviceId)],
+);
+
+export const userOtps = pgTable(
+  "user_otps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(), // login
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("uotp_user_idx").on(t.userId, t.createdAt)],
+);
+
+export type VdrGroupRow = typeof vdrGroups.$inferSelect;
+export type VdrInvitation = typeof vdrInvitations.$inferSelect;
+export type VdrIrmIssue = typeof vdrIrmIssues.$inferSelect;
+export type UserSession = typeof userSessions.$inferSelect;
 
 export type VdrFolder = typeof vdrFolders.$inferSelect;
 export type VdrFile = typeof vdrFiles.$inferSelect;

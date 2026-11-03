@@ -3,6 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { projectModules, users } from "@/db/schema";
 import { loadVdr } from "@/lib/vdr/access";
+import { listGroups } from "@/lib/vdr/groups";
 import { seedDefaultFields } from "@/lib/project-service";
 import { VdrBinTab, type BinRow } from "./VdrBinTab";
 import { requireProject } from "@/lib/auth";
@@ -33,10 +34,11 @@ export default async function SettingsPage({ params, searchParams }: { params: P
 
   let body: React.ReactNode = null;
   if (tab === "members") {
-    const members = await listProjectMembers(projectId);
+    const [members, groups] = await Promise.all([listProjectMembers(projectId), listGroups(projectId)]);
     body = (
       <MembersTab
         projectId={projectId}
+        groups={groups.map((g) => ({ code: g.code, name: g.name }))}
         meId={user.id}
         members={members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, title: m.title ?? "", role: m.role, isActive: m.isActive, joinedAt: m.joinedAt.toISOString(), vdrGroup: m.vdrGroup, organization: m.organization }))}
       />

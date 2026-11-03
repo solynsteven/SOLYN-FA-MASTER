@@ -5,19 +5,35 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull, isNotNull, desc, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { vdrFolders, vdrFiles, vdrPermissions, vdrEvents, users, trackerItems } from "@/db/schema";
-import type { VdrLevel, VdrGroup } from "@/db/schema";
-import { assertProject } from "@/lib/auth";
+import { vdrFolders, vdrFiles, vdrPermissions, vdrEvents, users, trackerItems, vdrAnnotations, projectMembers } from "@/db/schema";
+import type { VdrGroup, VdrCap, VdrSecurity, VdrDownloadMode } from "@/db/schema";
 import { run } from "@/lib/action";
-import { loadViewer, loadVdr, makeResolver, setPhaseUnlocked, phaseIsOpen, faTaskStatuses } from "@/lib/vdr/access";
+import { loadVdr, setPhaseUnlocked, phaseIsOpen, faTaskStatuses, requireVdr, capsResolver } from "@/lib/vdr/access";
 import { logVdr } from "@/lib/vdr/events";
 import { deleteStored, headStored, storageMode, blobAccess } from "@/lib/vdr/storage";
-import { atLeast, VDR_GROUPS } from "@/lib/vdr/constants";
+import { has, levelOf, normCaps, ALL_CAPS } from "@/lib/vdr/caps";
+import { createInvitation } from "@/lib/vdr/invites";
 
+/** 数据室操作统一入口：先过门禁（管理员除外），manage = true 时仅项目管理员 */
 async function guard(projectId: string, manage: boolean) {
-  const a = await assertProject(projectId, manage);
-  if (!a.enabledModules.has("vdr")) throw new Error("本项目未启用 VDR 模块");
-  return a;
+  const c = await requireVdr(projectId, { manage });
+  return { ...c, user: c.access.user, canManage: c.isManager };
+}
+
+/** 非管理员操作文件 / 目录时校验权限开关 */
+async function guardCap(projectId: string, need: VdrCap, target: { fileId?: string; folderId?: string }) {
+  const c = await guard(projectId, false);
+  const data = await loadVdr(projectId);
+  const file = target.fileId ? data.files.find((f) => f.id === target.fileId) : undefined;
+  const folderId = file?.folderId ?? target.folderId;
+  if (!folderId || !data.folders.some((f) => f.id === folderId)) throw new Error("对象不存在");
+  if (c.isManager) return { c, file, data };
+  const R = capsResolver(c, data);
+  const caps = file ? R.fileCaps(file) : R.folderCaps(folderId);
+  if (!has(caps, need)) throw new Error("没有执行此操作的权限");
+  const phase = R.phaseOf(folderId);
+  if (!phase || !phaseIsOpen(phase, await faTaskStatuses(projectId))) throw new Error("该 Phase 区尚未开放");
+  return { c, file, data };
 }
 const refresh = (projectId: string) => {
   revalidatePath(`/p/${projectId}/vdr`, "layout");
@@ -156,7 +172,7 @@ export type RegisterInput = { folderId: string; name: string; key: string; size:
 /** Vercel Blob 直传完成后登记文件（服务器再次核验存储中的对象） */
 export async function registerFile(projectId: string, input: RegisterInput) {
   return run(async () => {
-    const a = await guard(projectId, true);
+    const { c: a } = await guardCap(projectId, "upload", { folderId: input.folderId });
     if (storageMode() !== "blob") throw new Error("当前未启用 Vercel Blob");
     if (!input.key.includes(`vdr/${projectId}/`)) throw new Error("非法的存储路径");
     const [folder] = await db.select().from(vdrFolders).where(and(eq(vdrFolders.id, input.folderId), eq(vdrFolders.projectId, projectId), isNull(vdrFolders.deletedAt)));
@@ -176,7 +192,7 @@ export async function registerFile(projectId: string, input: RegisterInput) {
 
 export async function updateFile(projectId: string, fileId: string, input: { name: string; taskCode?: string | null; ddCode?: string | null; description?: string | null }) {
   return run(async () => {
-    const a = await guard(projectId, true);
+    const { c: a } = await guardCap(projectId, "edit", { fileId });
     const [f] = await db.select().from(vdrFiles).where(and(eq(vdrFiles.id, fileId), eq(vdrFiles.projectId, projectId)));
     if (!f) throw new Error("文件不存在");
     await validateCodes(projectId, input.taskCode, input.ddCode);
@@ -189,7 +205,7 @@ export async function updateFile(projectId: string, fileId: string, input: { nam
 
 export async function deleteFile(projectId: string, fileId: string) {
   return run(async () => {
-    const a = await guard(projectId, true);
+    const { c: a } = await guardCap(projectId, "edit", { fileId });
     const [f] = await db.select().from(vdrFiles).where(and(eq(vdrFiles.id, fileId), eq(vdrFiles.projectId, projectId), isNull(vdrFiles.deletedAt)));
     if (!f) throw new Error("文件不存在");
     await db.update(vdrFiles).set({ deletedAt: new Date(), deletedBy: a.user.id, deleteBatch: randomUUID() }).where(eq(vdrFiles.id, fileId));
@@ -198,41 +214,121 @@ export async function deleteFile(projectId: string, fileId: string) {
   }, "文件已移入回收站");
 }
 
-/** 记录打印（需 P 级及以上） */
-export async function logPrint(projectId: string, fileId: string) {
+/** 记录打印（需「打印」权限） */
+export async function logPrint(projectId: string, fileId: string, pages?: number) {
   return run(async () => {
-    const a = await guard(projectId, false);
-    const viewer = await loadViewer(projectId, a.user.id, a.canManage);
-    const { folders, files, perms } = await loadVdr(projectId);
-    const f = files.find((x) => x.id === fileId);
-    if (!f) throw new Error("文件不存在");
-    const lv = makeResolver(folders, perms, viewer).fileLevel(f);
-    if (!atLeast(lv, "P")) throw new Error("无打印权限");
-    await logVdr(projectId, a.user.id, "print", { fileId, folderId: f.folderId, detail: { name: f.name } });
+    const { c, file } = await guardCap(projectId, "print", { fileId });
+    await logVdr(projectId, c.user.id, "print", { fileId, folderId: file!.folderId, detail: { name: file!.name, pages } });
+  });
+}
+
+/* ------------------------------ 批注 ------------------------------ */
+
+export async function listAnnotations(projectId: string, fileId: string) {
+  return run(async () => {
+    const { c } = await guardCap(projectId, "preview", { fileId });
+    const rows = await db.select({ a: vdrAnnotations, name: users.name }).from(vdrAnnotations).leftJoin(users, eq(users.id, vdrAnnotations.userId))
+      .where(and(eq(vdrAnnotations.fileId, fileId), isNull(vdrAnnotations.deletedAt), c.isManager ? undefined : eq(vdrAnnotations.userId, c.user.id)))
+      .orderBy(vdrAnnotations.page, vdrAnnotations.createdAt);
+    return rows.map(({ a, name }) => ({ id: a.id, page: a.page, body: a.body, user: name ?? "", mine: a.userId === c.user.id, at: a.createdAt.toISOString() }));
+  });
+}
+
+export async function addAnnotation(projectId: string, fileId: string, page: number | null, body: string) {
+  return run(async () => {
+    const { c, file } = await guardCap(projectId, "annotate", { fileId });
+    const t = body.trim().slice(0, 2000);
+    if (!t) throw new Error("批注内容不能为空");
+    const [a] = await db.insert(vdrAnnotations).values({ projectId, fileId, userId: c.user.id, page, body: t }).returning();
+    await logVdr(projectId, c.user.id, "annotate", { fileId, folderId: file!.folderId, detail: { page } });
+    return { id: a.id };
+  });
+}
+
+export async function deleteAnnotation(projectId: string, id: string) {
+  return run(async () => {
+    const c = await guard(projectId, false);
+    const [a] = await db.select().from(vdrAnnotations).where(and(eq(vdrAnnotations.id, id), eq(vdrAnnotations.projectId, projectId)));
+    if (!a) throw new Error("批注不存在");
+    if (a.userId !== c.user.id && !c.isManager) throw new Error("只能删除自己的批注");
+    await db.update(vdrAnnotations).set({ deletedAt: new Date() }).where(eq(vdrAnnotations.id, id));
+  });
+}
+
+/* ------------------------------ 外部分享（邀请制） ------------------------------ */
+
+/** 分享单个文件给项目外人员：对方须通过邀请链接注册 / 登录、签署 NDA 后，仅能在线预览该文件，到期自动失效 */
+export async function shareFile(projectId: string, fileId: string, input: { email: string; name?: string; days: number; allowPrint?: boolean }) {
+  return run(async () => {
+    const { c, file } = await guardCap(projectId, "share", { fileId });
+    const email = input.email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("邮箱格式不正确");
+    const days = Math.max(1, Math.min(90, Math.round(input.days || 7)));
+    const until = new Date(Date.now() + days * 86400_000);
+    const caps: VdrCap[] = input.allowPrint && has(c.isManager ? ALL_CAPS : capsResolver(c, await loadVdr(projectId)).fileCaps(file!), "print") ? ["view", "preview", "print"] : ["view", "preview"];
+    const [u] = await db.select().from(users).where(eq(users.email, email));
+    const [m] = u ? await db.select().from(projectMembers).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, u.id))) : [];
+    if (u && m) {
+      await db.delete(vdrPermissions).where(and(eq(vdrPermissions.targetType, "file"), eq(vdrPermissions.targetId, fileId), eq(vdrPermissions.subjectType, "user"), eq(vdrPermissions.subject, u.id)));
+      await db.insert(vdrPermissions).values({ projectId, targetType: "file", targetId: fileId, subjectType: "user", subject: u.id, level: levelOf(caps), caps, expiresAt: until, updatedBy: c.user.id });
+      await logVdr(projectId, c.user.id, "share", { fileId, folderId: file!.folderId, detail: { name: file!.name, to: email, until: until.toISOString(), existing: true } });
+      refresh(projectId);
+      return { link: null as string | null, mailed: false, existing: true };
+    }
+    const r = await createInvitation({
+      projectId, email, name: input.name ?? null, groupCode: "SHARE", organization: null, accessExpiresAt: until, linkDays: Math.min(days, 14),
+      shareFileId: fileId, shareCaps: caps, note: `${c.user.name} 分享文件「${file!.name}」`, actor: c.user,
+    });
+    await logVdr(projectId, c.user.id, "share", { fileId, folderId: file!.folderId, detail: { name: file!.name, to: email, until: until.toISOString() } });
+    return { link: r.link, mailed: r.mailed, existing: false };
   });
 }
 
 /* ------------------------------ 权限 ------------------------------ */
 
-export type PermEntry = { subjectType: "group" | "user"; subject: string; level: VdrLevel | null };
+export type PermEntry = { subjectType: "group" | "user"; subject: string; caps: VdrCap[] | null; expiresAt?: string | null };
 
-/** 覆盖设置某个目录 / 文件上的全部权限条目；level = null 表示“继承上级” */
+/** 覆盖设置某个目录 / 文件上的全部权限条目；caps = null 表示“继承上级” */
 export async function setPermissions(projectId: string, targetType: "folder" | "file", targetId: string, entries: PermEntry[]) {
   return run(async () => {
     const a = await guard(projectId, true);
     const table = targetType === "folder" ? vdrFolders : vdrFiles;
     const [t] = await db.select({ id: table.id }).from(table).where(and(eq(table.id, targetId), eq(table.projectId, projectId)));
     if (!t) throw new Error("对象不存在");
-    const valid = entries.filter((e) => e.level && (e.subjectType === "user" || VDR_GROUPS.some((g) => g.code === e.subject)));
+    const codes = new Set(a.groups.map((g) => g.code));
+    const valid = entries.filter((e) => e.caps && (e.subjectType === "user" || codes.has(e.subject))).map((e) => ({ ...e, caps: normCaps(e.caps!.filter((x) => (ALL_CAPS as string[]).includes(x))) }));
     await db.delete(vdrPermissions).where(and(eq(vdrPermissions.targetType, targetType), eq(vdrPermissions.targetId, targetId)));
     if (valid.length)
-      await db.insert(vdrPermissions).values(valid.map((e) => ({ projectId, targetType, targetId, subjectType: e.subjectType, subject: e.subject, level: e.level!, updatedBy: a.user.id })));
+      await db.insert(vdrPermissions).values(valid.map((e) => ({
+        projectId, targetType, targetId, subjectType: e.subjectType, subject: e.subject, level: levelOf(e.caps), caps: e.caps,
+        expiresAt: e.expiresAt ? new Date(e.expiresAt) : null, updatedBy: a.user.id,
+      })));
     await logVdr(projectId, a.user.id, "permission", {
       [targetType === "folder" ? "folderId" : "fileId"]: targetId,
-      detail: { targetType, entries: valid.map((e) => `${e.subjectType === "group" ? e.subject : "用户"}:${e.level}`) },
+      detail: { targetType, entries: valid.map((e) => `${e.subjectType === "group" ? e.subject : "用户"}:${levelOf(e.caps)}`) },
     });
     refresh(projectId);
   }, "权限已保存");
+}
+
+/** 文档安全策略（围栏视图、允许的下载方式、IRM 默认值）；null 字段表示继承 */
+export async function setSecurity(projectId: string, targetType: "folder" | "file", targetId: string, sec: VdrSecurity | null) {
+  return run(async () => {
+    const a = await guard(projectId, true);
+    const table = targetType === "folder" ? vdrFolders : vdrFiles;
+    const modes: VdrDownloadMode[] = ["watermark", "irm", "encrypted", "original"];
+    const clean: VdrSecurity | null = sec ? {
+      fence: typeof sec.fence === "boolean" ? sec.fence : null,
+      downloadModes: Array.isArray(sec.downloadModes) ? sec.downloadModes.filter((m) => modes.includes(m)) : null,
+      irmExpiryDays: typeof sec.irmExpiryDays === "number" ? Math.max(1, Math.min(365, Math.round(sec.irmExpiryDays))) : null,
+      irmPrintLimit: typeof sec.irmPrintLimit === "number" ? Math.max(0, Math.min(99, Math.round(sec.irmPrintLimit))) : null,
+    } : null;
+    const empty = !clean || Object.values(clean).every((v) => v === null);
+    const r = await db.update(table).set({ security: empty ? null : clean }).where(and(eq(table.id, targetId), eq(table.projectId, projectId))).returning({ id: table.id });
+    if (!r.length) throw new Error("对象不存在");
+    await logVdr(projectId, a.user.id, "security", { [targetType === "folder" ? "folderId" : "fileId"]: targetId, detail: { security: clean } });
+    refresh(projectId);
+  }, "文档安全策略已保存");
 }
 
 /* ------------------------------ 操作记录 ------------------------------ */

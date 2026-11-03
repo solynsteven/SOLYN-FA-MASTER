@@ -71,6 +71,13 @@
       "when": 1791797405911,
       "tag": "0009_dd_location_vdr_folder",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793705558131,
+      "tag": "0010_vdr_security",
+      "breakpoints": true
     }
   ]
 }

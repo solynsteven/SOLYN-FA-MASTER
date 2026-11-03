@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { handleUpload, handleUploadPresigned, type HandleUploadBody, type HandleUploadPresignedBody } from "@vercel/blob/client";
 import { issueSignedToken } from "@vercel/blob";
-import { getProjectAccess } from "@/lib/auth";
+import { uploadGuard } from "@/lib/vdr/access";
 import { blobAuth, blobToken, blobStoreId, blobWebhookKey, STORAGE_MISSING } from "@/lib/vdr/storage";
 
 export const runtime = "nodejs";
@@ -19,8 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
   if (!auth) return NextResponse.json({ error: STORAGE_MISSING }, { status: 400 });
   const body = await req.json();
   const check = async (pathname: string) => {
-    const a = await getProjectAccess(projectId);
-    if (!a || !a.canManage || !a.enabledModules.has("vdr")) throw new Error("仅项目管理员可上传文件");
+    const a = (await uploadGuard(projectId)).access;
     if (!pathname.startsWith(`vdr/${projectId}/`)) throw new Error("非法的存储路径");
     return a;
   };
@@ -65,8 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 /** 上传前自检：确认存储已配置、当前用户可上传，并（OIDC 模式）实际签发一次凭证以验证认证 */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const a = await getProjectAccess(projectId);
-  if (!a || !a.canManage || !a.enabledModules.has("vdr")) return NextResponse.json({ ok: false, error: "仅项目管理员可上传文件" }, { status: 403 });
+  try { await uploadGuard(projectId); } catch (e) { return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "无权上传" }, { status: 403 }); }
   const auth = blobAuth();
   if (!auth) return NextResponse.json({ ok: false, error: STORAGE_MISSING });
   if (auth === "oidc") {

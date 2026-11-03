@@ -6,7 +6,10 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { createSession, destroySession } from "@/lib/session";
+import { destroySession, setMfaPending, readMfaPending, clearMfaPending } from "@/lib/session";
+import { finishLogin, sendEmailOtp, verifyEmailOtp } from "@/lib/login";
+import { verifyTotp } from "@/lib/totp";
+import { decrypt } from "@/lib/crypto";
 import { audit } from "@/lib/auth";
 
 export type FormState = { error?: string } | undefined;
@@ -23,9 +26,44 @@ export async function loginAction(_: FormState, fd: FormData): Promise<FormState
     return { error: "邮箱或密码不正确" };
   }
   if (!u.isActive) return { error: "该账号已被停用，请联系管理员" };
-  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, u.id));
-  await createSession({ sub: u.id, gr: u.globalRole });
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  const dest = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  if (u.mfaEnabled && u.mfaSecret) {
+    await setMfaPending(u.id, dest);
+    redirect("/login/mfa");
+  }
+  await finishLogin(u, false);
+  redirect(dest);
+}
+
+/** 二次验证：验证器 App 动态码，或邮件验证码 */
+export async function mfaAction(_: FormState, fd: FormData): Promise<FormState> {
+  const p = await readMfaPending();
+  if (!p) return { error: "验证已超时，请重新登录" };
+  const [u] = await db.select().from(users).where(eq(users.id, p.userId)).limit(1);
+  if (!u || !u.isActive) return { error: "账号不可用" };
+  const code = String(fd.get("code") ?? "").replace(/\s/g, "");
+  const via = String(fd.get("via") ?? "totp");
+  const ok = via === "email" ? await verifyEmailOtp(u, code) : !!u.mfaSecret && verifyTotp(decrypt(u.mfaSecret), code);
+  if (!ok) {
+    await new Promise((r) => setTimeout(r, 500));
+    return { error: "验证码不正确或已过期" };
+  }
+  await clearMfaPending();
+  await finishLogin(u, true);
+  redirect(p.next);
+}
+
+export async function sendLoginEmailCode(): Promise<FormState> {
+  const p = await readMfaPending();
+  if (!p) return { error: "验证已超时，请重新登录" };
+  const [u] = await db.select().from(users).where(eq(users.id, p.userId)).limit(1);
+  if (!u) return { error: "账号不可用" };
+  try {
+    await sendEmailOtp(u);
+    return undefined;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export async function logoutAction() {
@@ -55,6 +93,6 @@ export async function setupAction(_: FormState, fd: FormData): Promise<FormState
     .values({ name: p.data.name, email: p.data.email, passwordHash: await bcrypt.hash(p.data.password, 10), globalRole: "super_admin" })
     .returning();
   await audit(u.id, "system.setup", { email: u.email });
-  await createSession({ sub: u.id, gr: "super_admin" });
+  await finishLogin(u, false);
   redirect("/");
 }

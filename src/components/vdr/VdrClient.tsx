@@ -5,23 +5,24 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Folder, FolderOpen, FolderPlus, Upload, Lock, LockOpen, ChevronRight, ChevronDown, Shield, Pencil, Trash2, History, Settings2,
-  Eye, Download, FileText, FileSpreadsheet, FileImage, File as FileIcon, Layers, BarChart3, Plus, EyeOff, Clock,
+  Eye, Download, FileText, FileSpreadsheet, FileImage, File as FileIcon, Layers, BarChart3, Plus, EyeOff, Clock, ShieldCheck, Share2, ScanLine, LockKeyhole,
 } from "lucide-react";
 import { ConfirmButton, EmptyState, cn, useAction, Alert } from "@/components/ui";
-import { LEVELS, VDR_GROUPS, levelMeta, fmtSize, atLeast } from "@/lib/vdr/constants";
+import { LEVELS, levelMeta, levelOf, fmtSize, has } from "@/lib/vdr/constants";
 import { makeResolver } from "@/lib/vdr/resolve";
 import { fmtDateTime } from "@/lib/format";
-import type { VdrGroup, VdrLevel } from "@/db/schema";
+import type { VdrLevel } from "@/db/schema";
 import { deleteFolder, deleteFile, createFolder, renameFolder } from "@/app/p/[projectId]/vdr/actions";
 import { Viewer } from "./Viewer";
-import { LevelTag, PhaseDialog, NameDialog, UploadDialog, FileEditDialog, PermDialog, UnlockDialog, LogDialog } from "./dialogs";
-import type { VFolder, VFile, VPerm, VMember, CodeOpt, Me } from "./types";
+import { LevelTag, PhaseDialog, NameDialog, UploadDialog, FileEditDialog, PermDialog, SecurityDialog, ShareDialog, UnlockDialog, LogDialog } from "./dialogs";
+import type { VFolder, VFile, VPerm, VMember, VGroup, CodeOpt, Me } from "./types";
 
 export type { VFolder, VFile };
 
 type Props = {
   projectId: string; canManage: boolean; storage: "blob" | "local" | "none"; blobAccess: "public" | "private"; blobAuth: "token" | "oidc" | null; me: Me; initialFolder?: string | null;
-  folders: VFolder[]; files: VFile[]; perms: VPerm[]; members: VMember[]; faCodes: CodeOpt[]; ddCodes: CodeOpt[];
+  folders: VFolder[]; files: VFile[]; perms: VPerm[]; members: VMember[]; groups: VGroup[]; faCodes: CodeOpt[]; ddCodes: CodeOpt[];
+  watermark: string; wmStyle: { opacity: number; size: number; density: number };
 };
 
 const fileIcon = (f: VFile) => (f.preview === "pdf" || f.preview === "docx" ? FileText : f.preview === "xlsx" ? FileSpreadsheet : f.preview === "image" ? FileImage : FileIcon);
@@ -29,7 +30,8 @@ const fileIcon = (f: VFile) => (f.preview === "pdf" || f.preview === "docx" ? Fi
 export function VdrClient(p: Props) {
   const router = useRouter();
   const { canManage, projectId } = p;
-  const [viewAs, setViewAs] = useState<VdrGroup | "">("");
+  const [viewAs, setViewAs] = useState<string>("");
+  const defaults = useMemo(() => Object.fromEntries(p.groups.map((g) => [g.code, g.defaultCaps])), [p.groups]);
   // ?folder=<id>（如从 DD 管理的「保存位置」跳转）：定位并展开到该文件夹；不可见时退回第一个可进入的 Phase
   const target = p.initialFolder ? p.folders.find((f) => f.id === p.initialFolder) : undefined;
   const [current, setCurrent] = useState<string | null>(() => target?.id ?? p.folders.find((f) => f.isPhase && !f.locked)?.id ?? null);
@@ -40,24 +42,25 @@ export function VdrClient(p: Props) {
   });
   const [dialog, setDialog] = useState<
     | { k: "phase"; phase?: VFolder } | { k: "newFolder" } | { k: "rename"; folder: VFolder } | { k: "upload" } | { k: "edit"; file: VFile }
-    | { k: "perm"; target: { type: "folder" | "file"; id: string; name: string; folderId: string | null } } | { k: "unlock"; phase: VFolder } | { k: "log"; folder: VFolder } | null
+    | { k: "perm"; target: { type: "folder" | "file"; id: string; name: string; folderId: string | null } } | { k: "unlock"; phase: VFolder } | { k: "log"; folder: VFolder }
+    | { k: "security"; type: "folder" | "file"; id: string; name: string; folderId: string } | { k: "share"; file: VFile } | null
   >(null);
-  const [viewing, setViewing] = useState<VFile | null>(null);
+  const [viewing, setViewing] = useState<{ file: VFile; download?: boolean } | null>(null);
   const del = useAction();
 
   // 管理员“按权限组视角预览”：在浏览器中用同一套规则重新计算
   const view = useMemo(() => {
     if (!canManage || !viewAs) return { folders: p.folders, files: p.files, preview: false };
-    const R = makeResolver(p.folders, p.perms, { userId: "__preview__", isManager: false, group: viewAs, organization: null });
-    const files = p.files.map((f) => ({ ...f, level: R.fileLevel(f) })).filter((f) => f.level !== "X" && (R.phaseOf(f.folderId) as VFolder | undefined)?.open);
+    const R = makeResolver(p.folders, p.perms, { userId: "__preview__", isManager: false, group: viewAs, organization: null }, defaults);
+    const files = p.files.map((f) => { const caps = R.fileCaps(f); return { ...f, caps, lv: levelOf(caps) }; }).filter((f) => has(f.caps, "view") && (R.phaseOf(f.folderId) as VFolder | undefined)?.open);
     const keep = new Set<string>();
     const byId = new Map(p.folders.map((f) => [f.id, f]));
     const up = (id: string | null) => { let c = id ? byId.get(id) : undefined; while (c && !keep.has(c.id)) { keep.add(c.id); c = c.parentId ? byId.get(c.parentId) : undefined; } };
     files.forEach((f) => up(f.folderId));
-    p.folders.forEach((f) => { if (R.folderLevel(f.id) !== "X") up(f.id); });
-    const folders = p.folders.filter((f) => (f.isPhase ? f.open : keep.has(f.id) && (byId.get((R.phaseOf(f.id) as VFolder).id)?.open ?? false))).map((f) => ({ ...f, level: R.folderLevel(f.id) }));
+    p.folders.forEach((f) => { if (has(R.folderCaps(f.id), "view")) up(f.id); });
+    const folders = p.folders.filter((f) => (f.isPhase ? f.open : keep.has(f.id) && (byId.get((R.phaseOf(f.id) as VFolder).id)?.open ?? false))).map((f) => ({ ...f, caps: R.folderCaps(f.id), lv: levelOf(R.folderCaps(f.id)) }));
     return { folders, files, preview: true };
-  }, [canManage, viewAs, p.folders, p.files, p.perms]);
+  }, [canManage, viewAs, p.folders, p.files, p.perms, defaults]);
 
   const children = (pid: string | null) => view.folders.filter((f) => f.parentId === pid).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-CN"));
   const cur = view.folders.find((f) => f.id === current) ?? null;
@@ -73,15 +76,19 @@ export function VdrClient(p: Props) {
   // 管理员：每行显示各权限组的生效级别
   const groupMatrix = useMemo(() => {
     if (!canManage) return null;
-    const rs = VDR_GROUPS.map((g) => ({ g: g.code, R: makeResolver(p.folders, p.perms, { userId: "__g__", isManager: false, group: g.code, organization: null }) }));
+    const rs = p.groups.filter((g) => g.code !== "SHARE").map((g) => ({ g: g.code, R: makeResolver(p.folders, p.perms, { userId: "__g__", isManager: false, group: g.code, organization: null }, defaults) }));
     return {
-      folder: (id: string) => rs.map(({ g, R }) => ({ g, l: R.folderLevel(id) })),
-      file: (f: VFile) => rs.map(({ g, R }) => ({ g, l: R.fileLevel(f) })),
+      folder: (id: string) => rs.map(({ g, R }) => ({ g, l: levelOf(R.folderCaps(id)) })),
+      file: (f: VFile) => rs.map(({ g, R }) => ({ g, l: levelOf(R.fileCaps(f)) })),
       hasOwn: (type: "folder" | "file", id: string) => p.perms.some((x) => x.targetType === type && x.targetId === id),
+      codes: rs.map((x) => x.g),
     };
-  }, [canManage, p.folders, p.perms]);
-
-  const watermark = `${p.me.name} · ${p.me.organization ?? p.me.group ?? "Solyn"} · ${fmtDateTime(new Date())} · 商业机密`;
+  }, [canManage, p.folders, p.perms, p.groups, defaults]);
+  const secInherit = (folderId: string, fileSec: VFile["security"] | null) => {
+    const R = makeResolver(p.folders, [], { userId: "", isManager: true, group: null, organization: null });
+    const s = R.securityOf(fileSec ? { id: "", folderId, security: null } : null, folderId);
+    return { fence: !!s.fence, downloadModes: s.downloadModes ?? ["watermark", "irm"], irmExpiryDays: s.irmExpiryDays ?? 30, irmPrintLimit: s.irmPrintLimit ?? 0 };
+  };
   const open = (f: VFolder) => {
     if (f.isPhase && f.locked && !canManage) { setDialog({ k: "unlock", phase: f }); return; }
     setCurrent(f.id);
@@ -125,9 +132,9 @@ export function VdrClient(p: Props) {
   );
 
   const Matrix = ({ items, own }: { items: { g: string; l: VdrLevel }[]; own: boolean }) => (
-    <span className="inline-flex items-center gap-0.5" title={items.map((x) => `${x.g}: ${levelMeta(x.l).label}`).join("\n")}>
+    <span className="inline-flex items-center whitespace-nowrap" title={items.map((x) => `${x.g}: ${levelMeta(x.l).label}`).join("\n")}>
       {items.map((x) => (
-        <span key={x.g} className="w-[18px] text-center font-num text-[10px] font-semibold" style={{ color: levelMeta(x.l).color, opacity: x.l === "X" ? 0.5 : 1 }}>{levelMeta(x.l).short}</span>
+        <span key={x.g} className="inline-block w-[17px] text-center font-num text-[10px] font-semibold" style={{ color: levelMeta(x.l).color, opacity: x.l === "L0" ? 0.5 : 1 }}>{levelMeta(x.l).short}</span>
       ))}
       {own && <span className="ml-1 h-1.5 w-1.5 rounded-full bg-warn" title="此处有单独设置的权限" />}
     </span>
@@ -149,13 +156,14 @@ export function VdrClient(p: Props) {
           {phases.length ? <Tree pid={null} depth={0} /> : <div className="px-2 py-6 text-center text-xs text-brand-sage">{view.preview ? "该视角下没有可见的 Phase 区" : canManage ? "先新建一个 Phase 区" : "暂无已开放的资料"}</div>}
         </div>
         <div className="space-y-1 border-t border-line px-3 py-2.5">
-          {LEVELS.filter((l) => canManage || l.code !== "X").map((l) => (
+          {LEVELS.filter((l) => canManage || l.code !== "L0").map((l) => (
             <div key={l.code} className="flex items-center gap-2 text-2xs">
               <span className="w-4 text-center font-num font-semibold" style={{ color: l.color }}>{l.short}</span>
-              <span style={{ color: l.color }}>文件名</span>
+              <span style={{ color: l.color, textDecoration: l.code === "L0" ? "line-through" : undefined }}>文件名</span>
               <span className="text-brand-sage">{l.label}</span>
             </div>
           ))}
+          <div className="pt-1 text-[10px] leading-relaxed text-brand-sage/80">C = 自定义开关组合。<ScanLine size={10} className="inline" /> 围栏视图　<LockKeyhole size={10} className="inline" /> 受控下载</div>
         </div>
       </aside>
 
@@ -164,12 +172,13 @@ export function VdrClient(p: Props) {
         {canManage && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-ink-900 px-3 py-2">
             <span className="text-2xs text-brand-sage">视角</span>
-            <select className="input w-auto py-1 text-xs" value={viewAs} onChange={(e) => setViewAs(e.target.value as VdrGroup | "")}>
+            <select className="input w-auto py-1 text-xs" value={viewAs} onChange={(e) => setViewAs(e.target.value)}>
               <option value="">管理员（全部）</option>
-              {VDR_GROUPS.map((g) => <option key={g.code} value={g.code}>以 {g.code} · {g.desc} 查看</option>)}
+              {p.groups.map((g) => <option key={g.code} value={g.code}>以 {g.code} · {g.name} 查看</option>)}
             </select>
             {view.preview && <span className="inline-flex items-center gap-1 text-2xs text-warn"><EyeOff size={12} />预览模式：只显示该权限组能看到的内容与级别（未开放的 Phase 区已隐藏）</span>}
             <div className="ml-auto flex gap-2">
+              <Link href={`/p/${projectId}/vdr/security`} className="btn-secondary btn-sm"><ShieldCheck size={13} />安全中心</Link>
               <Link href={`/p/${projectId}/vdr/analytics`} className="btn-secondary btn-sm"><BarChart3 size={13} />访问分析</Link>
             </div>
           </div>
@@ -201,6 +210,7 @@ export function VdrClient(p: Props) {
                 <div className="flex flex-wrap gap-1.5">
                   {cur.isPhase && <button className="btn-secondary btn-sm" onClick={() => setDialog({ k: "phase", phase: cur })}><Settings2 size={13} />Phase 设置</button>}
                   <button className="btn-secondary btn-sm" onClick={() => setDialog({ k: "perm", target: { type: "folder", id: cur.id, name: cur.name, folderId: cur.parentId } })}><Shield size={13} />权限</button>
+                  <button className="btn-secondary btn-sm" onClick={() => setDialog({ k: "security", type: "folder", id: cur.id, name: cur.name, folderId: cur.parentId ?? cur.id })}><ShieldCheck size={13} />安全策略</button>
                   <button className="btn-secondary btn-sm" onClick={() => setDialog({ k: "log", folder: cur })}><History size={13} />操作记录</button>
                   <button className="btn-secondary btn-sm" onClick={() => setDialog({ k: "rename", folder: cur })}><Pencil size={13} />重命名</button>
                   <ConfirmButton className="btn-danger btn-sm" title={`删除${cur.isPhase ? " Phase 区" : "目录"}`} confirmText="移入回收站"
@@ -211,6 +221,9 @@ export function VdrClient(p: Props) {
                   <button className="btn-secondary btn-sm" onClick={() => setDialog({ k: "newFolder" })}><FolderPlus size={13} />新建目录</button>
                   <button className="btn-primary btn-sm" onClick={() => setDialog({ k: "upload" })}><Upload size={13} />上传文件</button>
                 </div>
+              )}
+              {!canManage && !locked && has(cur.caps, "upload") && (
+                <button className="btn-primary btn-sm" onClick={() => setDialog({ k: "upload" })}><Upload size={13} />上传文件</button>
               )}
             </div>
             <Alert>{del.error}</Alert>
@@ -223,12 +236,12 @@ export function VdrClient(p: Props) {
                 <table className="w-full">
                   <thead>
                     <tr>
-                      <th className="th">名称</th>
+                      <th className="th min-w-[240px]">名称</th>
                       <th className="th w-28">项目任务编码</th>
                       <th className="th w-36">材料编码</th>
                       <th className="th w-20 text-right">大小</th>
                       <th className="th w-40">上传</th>
-                      {groupMatrix && !view.preview && <th className="th w-36" title="各权限组的生效级别">{VDR_GROUPS.map((g) => <span key={g.code} className="inline-block w-[18px] text-center text-[8px]">{g.code.replace("BID", "B")}</span>)}</th>}
+                      {groupMatrix && !view.preview && <th className="th whitespace-nowrap" title="各权限组的生效级别">{groupMatrix.codes.map((g) => <span key={g} className="inline-block w-[17px] text-center text-[8px] tracking-normal">{g.replace("BID", "B").slice(0, 3)}</span>)}</th>}
                       <th className="th w-40" />
                     </tr>
                   </thead>
@@ -246,15 +259,17 @@ export function VdrClient(p: Props) {
                     ))}
                     {curFiles.map((f) => {
                       const Icon = fileIcon(f);
-                      const m = levelMeta(f.level);
-                      const canView = !!f.preview && atLeast(f.level, "V");
+                      const m = levelMeta(f.lv);
+                      const canView = !!f.preview && has(f.caps, "preview");
                       return (
                         <tr key={f.id} className="hover:bg-ink-850/70">
                           <td className="td">
-                            <button className={cn("inline-flex max-w-full items-center gap-2 text-left", canView ? "hover:underline" : "cursor-default")} disabled={!canView} onClick={() => canView && setViewing(f)} title={canView ? "在线阅览" : f.preview ? "" : "该格式不支持在线阅览"}>
+                            <button className={cn("inline-flex max-w-full items-center gap-2 text-left", canView ? "hover:underline" : "cursor-default")} disabled={!canView} onClick={() => canView && setViewing({ file: f })} title={canView ? "在线预览" : f.preview ? "无预览权限" : "该格式不支持在线预览"}>
                               <Icon size={15} className="shrink-0" style={{ color: m.color }} />
-                              <span className="truncate" style={{ color: m.color, textDecoration: f.level === "X" ? "line-through" : undefined }}>{f.name}</span>
-                              <LevelTag level={f.level} />
+                              <span className="truncate" style={{ color: m.color, textDecoration: f.lv === "L0" ? "line-through" : undefined }}>{f.name}</span>
+                              <LevelTag lv={f.lv} />
+                              {f.fence && <ScanLine size={12} className="shrink-0 text-warn" aria-label="围栏视图" />}
+                              {(f.security?.downloadModes || f.security?.fence !== undefined) && canManage && <ShieldCheck size={12} className="shrink-0 text-brand-sage" aria-label="单独设置了安全策略" />}
                             </button>
                             {f.description && <div className="mt-0.5 pl-6 text-2xs text-brand-sage">{f.description}</div>}
                           </td>
@@ -265,11 +280,18 @@ export function VdrClient(p: Props) {
                           {groupMatrix && !view.preview && <td className="td"><Matrix items={groupMatrix.file(f)} own={groupMatrix.hasOwn("file", f.id)} /></td>}
                           <td className="td">
                             <div className="flex justify-end gap-1">
-                              {canView && <button className="btn-ghost btn-sm" title="在线阅览" onClick={() => setViewing(f)}><Eye size={13} /></button>}
-                              {atLeast(f.level, "O") && !view.preview && <a className="btn-ghost btn-sm" title="下载原件" href={`/p/${projectId}/vdr/file/${f.id}?mode=download`}><Download size={13} /></a>}
+                              {canView && <button className="btn-ghost btn-sm" title="在线预览" onClick={() => setViewing({ file: f })}><Eye size={13} /></button>}
+                              {canView && f.downloadModes.length > 0 && !view.preview && <button className="btn-ghost btn-sm" title="下载（水印 / IRM）" onClick={() => setViewing({ file: f, download: true })}><Download size={13} /></button>}
+                              {!canManage && has(f.caps, "share") && <button className="btn-ghost btn-sm" title="外部分享" onClick={() => setDialog({ k: "share", file: f })}><Share2 size={13} /></button>}
                               {canManage && !view.preview && (
                                 <>
+                                  <button className="btn-ghost btn-sm" title="外部分享" onClick={() => setDialog({ k: "share", file: f })}><Share2 size={13} /></button>
                                   <button className="btn-ghost btn-sm" title="权限" onClick={() => setDialog({ k: "perm", target: { type: "file", id: f.id, name: f.name, folderId: f.folderId } })}><Shield size={13} /></button>
+                                  <button className="btn-ghost btn-sm" title="文档安全策略" onClick={() => setDialog({ k: "security", type: "file", id: f.id, name: f.name, folderId: f.folderId })}><ShieldCheck size={13} /></button>
+                                </>
+                              )}
+                              {!view.preview && (canManage || has(f.caps, "edit")) && (
+                                <>
                                   <button className="btn-ghost btn-sm" title="文件信息" onClick={() => setDialog({ k: "edit", file: f })}><Pencil size={13} /></button>
                                   <ConfirmButton className="btn-ghost btn-sm text-danger" title="删除文件" confirmText="移入回收站" body={<>将「{f.name}」移入回收站，删除时间与操作人会被记录，可在「项目管理 → VDR 回收站」恢复。</>}
                                     onConfirm={() => del.exec(() => deleteFile(projectId, f.id), () => router.refresh())}>
@@ -295,10 +317,17 @@ export function VdrClient(p: Props) {
       {dialog?.k === "rename" && <NameDialog title="重命名" initial={dialog.folder.name} onSave={(n) => renameFolder(projectId, dialog.folder.id, n)} onClose={() => setDialog(null)} />}
       {dialog?.k === "upload" && cur && <UploadDialog projectId={projectId} folder={cur} storage={p.storage} blobAccess={p.blobAccess} blobAuth={p.blobAuth} faCodes={p.faCodes} ddCodes={p.ddCodes} onClose={() => setDialog(null)} />}
       {dialog?.k === "edit" && <FileEditDialog projectId={projectId} file={dialog.file} faCodes={p.faCodes} ddCodes={p.ddCodes} onClose={() => setDialog(null)} />}
-      {dialog?.k === "perm" && <PermDialog projectId={projectId} target={dialog.target} folders={p.folders} perms={p.perms} members={p.members} onClose={() => setDialog(null)} />}
+      {dialog?.k === "perm" && <PermDialog projectId={projectId} target={dialog.target} folders={p.folders} perms={p.perms} members={p.members} groups={p.groups} onClose={() => setDialog(null)} />}
+      {dialog?.k === "security" && (
+        <SecurityDialog projectId={projectId} target={{ type: dialog.type, id: dialog.id, name: dialog.name }}
+          own={dialog.type === "folder" ? p.folders.find((f) => f.id === dialog.id)?.security ?? null : p.files.find((f) => f.id === dialog.id)?.security ?? null}
+          inherited={dialog.type === "file" ? secInherit(dialog.folderId, {}) : dialog.folderId !== dialog.id ? secInherit(dialog.folderId, null) : { fence: false, downloadModes: ["watermark", "irm"], irmExpiryDays: 30, irmPrintLimit: 0 }}
+          onClose={() => setDialog(null)} />
+      )}
+      {dialog?.k === "share" && <ShareDialog projectId={projectId} file={dialog.file} canPrint={canManage || has(dialog.file.caps, "print")} onClose={() => setDialog(null)} />}
       {dialog?.k === "unlock" && <UnlockDialog projectId={projectId} phase={dialog.phase} onClose={() => setDialog(null)} />}
       {dialog?.k === "log" && <LogDialog projectId={projectId} folder={dialog.folder} onClose={() => setDialog(null)} />}
-      {viewing && <Viewer projectId={projectId} file={viewing} watermark={watermark} onClose={() => setViewing(null)} />}
+      {viewing && <Viewer projectId={projectId} file={viewing.file} autoDownload={viewing.download} onClose={() => setViewing(null)} />}
     </div>
     </>
   );

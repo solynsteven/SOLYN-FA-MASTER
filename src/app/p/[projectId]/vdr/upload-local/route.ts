@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { vdrFiles, vdrFolders, trackerItems } from "@/db/schema";
-import { getProjectAccess } from "@/lib/auth";
+import { uploadGuard } from "@/lib/vdr/access";
 import { saveLocal, storageMode, STORAGE_MISSING } from "@/lib/vdr/storage";
 import { logVdr } from "@/lib/vdr/events";
 
@@ -12,14 +12,14 @@ export const runtime = "nodejs";
 /** 本地开发用：未配置 Vercel Blob 时，文件经服务器写入本地目录 */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const a = await getProjectAccess(projectId);
-  if (!a || !a.canManage || !a.enabledModules.has("vdr")) return NextResponse.json({ error: "仅项目管理员可上传文件" }, { status: 403 });
   const mode = storageMode();
   if (mode === "none") return NextResponse.json({ error: STORAGE_MISSING }, { status: 400 });
   if (mode !== "local") return NextResponse.json({ error: "已启用 Vercel Blob，请刷新页面后重试" }, { status: 400 });
   const fd = await req.formData();
   const file = fd.get("file");
   const folderId = String(fd.get("folderId") ?? "");
+  let a;
+  try { a = (await uploadGuard(projectId, folderId)).access; } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : "无权上传" }, { status: 403 }); }
   if (!(file instanceof File)) return NextResponse.json({ error: "缺少文件" }, { status: 400 });
   const [folder] = await db.select().from(vdrFolders).where(and(eq(vdrFolders.id, folderId), eq(vdrFolders.projectId, projectId), isNull(vdrFolders.deletedAt)));
   if (!folder) return NextResponse.json({ error: "目录不存在" }, { status: 400 });

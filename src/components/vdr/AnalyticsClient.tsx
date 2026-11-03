@@ -10,9 +10,9 @@ import { cn } from "@/lib/cn";
 
 /* 访问动作与权限级别同色：阅览 = V、打印 = P、下载 = O */
 const ACT = [
-  { k: "views", label: "阅览", color: levelMeta("V").color },
-  { k: "prints", label: "打印", color: levelMeta("P").color },
-  { k: "downloads", label: "下载", color: levelMeta("O").color },
+  { k: "views", label: "阅览", color: levelMeta("L2").color },
+  { k: "prints", label: "打印", color: levelMeta("L4").color },
+  { k: "downloads", label: "下载", color: levelMeta("L5").color },
 ] as const;
 
 const STATUS: Record<string, { label: string; cls: string }> = {

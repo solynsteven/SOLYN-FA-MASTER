@@ -3,16 +3,28 @@ import { cache } from "react";
 import { redirect, notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { users, projects, projectMembers, projectModules, auditLogs } from "@/db/schema";
+import { users, projects, projectMembers, projectModules, auditLogs, userSessions, vdrGroups } from "@/db/schema";
 import { readSession } from "./session";
 import type { ModuleKey } from "./modules";
 
 export type ProjectRole = "super_admin" | "project_admin" | "member";
 
-export const getCurrentUser = cache(async () => {
+/** 当前会话：JWT 有效且 user_sessions 中未被撤销（强制下线 / 退出登录后立即失效） */
+export const getCurrentSession = cache(async () => {
   const s = await readSession();
-  if (!s) return null;
-  const [u] = await db.select().from(users).where(eq(users.id, s.sub)).limit(1);
+  if (!s?.sid) return null; // 旧版令牌（无会话记录）需重新登录
+  const [row] = await db.select().from(userSessions).where(eq(userSessions.id, s.sid)).limit(1);
+  if (!row || row.revokedAt || row.userId !== s.sub) return null;
+  if (Date.now() - row.lastSeenAt.getTime() > 2 * 60 * 1000) {
+    await db.update(userSessions).set({ lastSeenAt: new Date() }).where(eq(userSessions.id, row.id)).catch(() => null);
+  }
+  return row;
+});
+
+export const getCurrentUser = cache(async () => {
+  const sess = await getCurrentSession();
+  if (!sess) return null;
+  const [u] = await db.select().from(users).where(eq(users.id, sess.userId)).limit(1);
   if (!u || !u.isActive) return null;
   return u;
 });
@@ -37,6 +49,7 @@ export const getProjectAccess = cache(async (projectId: string) => {
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   if (!project) return null;
   let role: ProjectRole | null = null;
+  let vdrGroup: string | null = null;
   if (user.globalRole === "super_admin") role = "super_admin";
   else {
     const [m] = await db
@@ -45,11 +58,19 @@ export const getProjectAccess = cache(async (projectId: string) => {
       .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, user.id)))
       .limit(1);
     role = m?.role ?? null;
+    vdrGroup = m?.vdrGroup ?? null;
   }
   if (!role) return null;
   const mods = await db.select().from(projectModules).where(eq(projectModules.projectId, projectId));
   const enabled = new Set(mods.filter((m) => m.enabled).map((m) => m.moduleKey as ModuleKey));
-  return { user, project, role, canManage: role !== "member", enabledModules: enabled };
+  // 外部成员（买方 / 顾问 / 自定义组 / 外部分享）只能使用数据室与问答
+  let external = false;
+  if (role === "member" && vdrGroup) {
+    const [g] = await db.select({ kind: vdrGroups.kind }).from(vdrGroups).where(and(eq(vdrGroups.projectId, projectId), eq(vdrGroups.code, vdrGroup))).limit(1);
+    external = vdrGroup === "SHARE" || !!g && ["buyer", "advisor", "custom"].includes(g.kind);
+    if (external) for (const k of [...enabled]) if (k !== "vdr" && k !== "qa") enabled.delete(k);
+  }
+  return { user, project, role, canManage: role !== "member", enabledModules: enabled, external };
 });
 
 export async function requireProject(projectId: string, opts?: { manage?: boolean; module?: ModuleKey }) {

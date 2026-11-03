@@ -1,27 +1,16 @@
-import type { VdrGroup, VdrLevel } from "@/db/schema";
+export { CAPS, LEVELS, levelMeta, levelOf, normCaps, has, capsOfLevel, DOWNLOAD_MODES } from "./caps";
 
-export const VDR_GROUPS: { code: VdrGroup; label: string; desc: string }[] = [
-  { code: "ADM", label: "ADM", desc: "卖方 FA（管理员）" },
-  { code: "SEL", label: "SEL", desc: "卖方及其顾问" },
-  { code: "BID1", label: "BID1", desc: "一次入札候选" },
-  { code: "BID2", label: "BID2", desc: "二次入札候选" },
-  { code: "EXC", label: "EXC", desc: "独家谈判对象" },
-  { code: "DD", label: "DD", desc: "买方尽调顾问" },
-];
-
-/** 阶梯式权限：X 不可见 < V 仅在线阅览 < P 可打印 < O 原件可下载 */
-export const LEVEL_ORDER: VdrLevel[] = ["X", "V", "P", "O"];
-export const LEVELS: { code: VdrLevel; label: string; short: string; color: string }[] = [
-  { code: "O", label: "原件可下载", short: "O", color: "#A6E0C1" },
-  { code: "P", label: "可打印", short: "P", color: "#E3C98A" },
-  { code: "V", label: "仅在线阅览", short: "V", color: "#BAC3BF" },
-  { code: "X", label: "不可见", short: "✕", color: "#6B7A73" },
-];
-export const levelMeta = (l: VdrLevel) => LEVELS.find((x) => x.code === l)!;
-export const atLeast = (have: VdrLevel, need: VdrLevel) => LEVEL_ORDER.indexOf(have) >= LEVEL_ORDER.indexOf(need);
-
-/** 未设置任何规则时的默认权限 */
-export const DEFAULT_GROUP_LEVEL: Record<VdrGroup, VdrLevel> = { ADM: "O", SEL: "X", BID1: "X", BID2: "X", EXC: "X", DD: "X" };
+/** 内置权限组（新项目自动创建；可在「VDR 安全中心」改名、调整策略或新增自定义组） */
+export const BUILTIN_GROUPS = [
+  { code: "ADM", name: "内部管理层", description: "卖方 FA / 项目管理团队", kind: "internal", defaultLevel: "L5" },
+  { code: "SEL", name: "卖方及其顾问", description: "卖方公司及卖方顾问", kind: "seller", defaultLevel: "L0" },
+  { code: "BID1", name: "竞标买方组 1", description: "一次入札候选买方", kind: "buyer", defaultLevel: "L0" },
+  { code: "BID2", name: "竞标买方组 2", description: "二次入札候选买方", kind: "buyer", defaultLevel: "L0" },
+  { code: "EXC", name: "独家谈判对象", description: "进入独家谈判的买方", kind: "buyer", defaultLevel: "L0" },
+  { code: "DD", name: "买方尽调顾问", description: "买方委托的尽调机构", kind: "advisor", defaultLevel: "L0" },
+  { code: "LEGAL", name: "法律顾问组", description: "律师事务所", kind: "advisor", defaultLevel: "L0" },
+  { code: "FIN", name: "财务组", description: "会计师 / 税理士 / 财务顾问", kind: "advisor", defaultLevel: "L0" },
+] as const;
 
 export const PREVIEWABLE = {
   pdf: (ct: string, name: string) => ct === "application/pdf" || /\.pdf$/i.test(name),
@@ -39,7 +28,12 @@ export const VDR_ACTION_LABEL: Record<string, string> = {
   upload: "上传", delete: "删除", restore: "恢复", purge: "彻底删除", view: "阅览", print: "打印", download: "下载",
   folder_create: "新建目录", folder_rename: "重命名目录", folder_delete: "删除目录", folder_restore: "恢复目录", folder_purge: "彻底删除目录",
   phase_create: "新建 Phase 区", phase_update: "修改 Phase 设置", phase_unlock: "输入密码进入 Phase",
-  permission: "修改权限", file_update: "修改文件信息",
+  permission: "修改权限", file_update: "修改文件信息", security: "修改文档安全策略",
+  download_watermark: "下载水印副本", download_irm: "下载 IRM 受控文件", download_encrypted: "下载加密文件", download_original: "下载原件",
+  irm_open: "打开 IRM 文件", irm_print: "IRM 文件打印", irm_revoke: "远程撤销 IRM 文件", irm_update: "修改 IRM 策略", irm_denied: "IRM 打开被拒",
+  annotate: "添加批注", share: "外部分享", nda_sign: "签署 NDA", access_denied: "访问被拦截", invite: "发出邀请", invite_accept: "接受邀请",
+  invite_revoke: "撤销邀请", new_device: "陌生设备登录", session_revoke: "强制下线", group_update: "修改权限组", member_update: "修改成员访问",
+  settings_update: "修改安全设置", irm_password_view: "查看加密副本密码",
 };
 
 export function fmtSize(n: number) {
