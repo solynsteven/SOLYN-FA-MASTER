@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard, ListChecks, FileSearch, Calculator, MessagesSquare, FolderLock, Settings2, ShieldCheck,
-  Users, KeyRound, FolderKanban, ScrollText, LogOut, ChevronsUpDown, ArrowLeft, CircleUser, Check,
+  Users, KeyRound, FolderKanban, ScrollText, LogOut, ChevronsUpDown, ArrowLeft, CircleUser, Check, FileLock2,
 } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "./ui";
@@ -157,6 +157,9 @@ export function Sidebar({ user, roleLabel, projects, current, mode }: SidebarPro
                 <NavItem href="/" icon={FolderKanban} label="我的项目" exact />
               </Section>
             )}
+            <Section title="工具">
+              <NavItem href="/secure-reader" icon={FileLock2} label="安全阅读器" />
+            </Section>
             {isSuper && (
               <Section title="系统">
                 <NavItem href="/admin" icon={ShieldCheck} label="全局管理后台" />

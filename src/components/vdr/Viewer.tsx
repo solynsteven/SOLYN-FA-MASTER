@@ -339,7 +339,7 @@ function DownloadDialog({ projectId, file, info, onClose }: { projectId: string;
               </div>
             </div>
           )}
-          {mode === "irm" && <p className="text-2xs text-brand-sage">.fasec 受控文件只能在 FA MASTER「安全阅读器」中登录后联网打开（菜单：账号 → 安全阅读器，或访问 /secure-reader）。管理员撤销后该副本立即无法打开。</p>}
+          {mode === "irm" && <p className="text-2xs text-brand-sage">.fasec 受控文件只能在 FA MASTER「安全阅读器」中登录后联网打开（左侧菜单「工具 → 安全阅读器」）。管理员撤销后该副本立即无法打开。</p>}
         </div>
       ) : (
         <div className="space-y-3">
