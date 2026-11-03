@@ -18,6 +18,12 @@ function ensureFonts() {
   if (fontsReady) return;
   GlobalFonts.registerFromPath(path.join(FONT_DIR, "NotoSansSC-Regular.otf"), "SolynCJK");
   GlobalFonts.registerFromPath(path.join(FONT_DIR, "Jost-Regular.ttf"), "SolynLatin");
+  // PDF 未嵌入的字体（日文文档常见的 MS 明朝 / MS ゴシック 等）由 pdf.js 以 fillText + 通用字族（sans-serif / serif）绘制。
+  // 服务器（Vercel）上没有系统字体，需把通用字族指向自带的 Noto Sans CJK，否则中日文内容渲染为空白或方框。
+  for (const alias of ["sans-serif", "serif", "monospace", "system-ui"]) {
+    GlobalFonts.registerFromPath(path.join(FONT_DIR, "NotoSansSC-Regular.otf"), alias);
+    GlobalFonts.registerFromPath(path.join(FONT_DIR, "NotoSansSC-Medium.otf"), alias);
+  }
   fontsReady = true;
 }
 
@@ -130,6 +136,7 @@ export async function renderPage(f: VdrFile, n: number, width: number, wm: WmOpt
   const kind = previewKind(f.contentType, f.name);
   const W = Math.max(400, Math.min(2000, Math.round(width)));
   if (kind === "pdf") {
+    ensureFonts();
     const doc = await pdfDoc(f);
     if (n < 1 || n > doc.numPages) throw new Error("页码超出范围");
     const page = await doc.getPage(n);
