@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { fileAccess, wmOpts } from "@/lib/vdr/file-access";
-import { renderPage, pageText } from "@/lib/vdr/render";
+import { renderPage, pageText, renderDiag } from "@/lib/vdr/render";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,11 +14,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
   if (r instanceof NextResponse) return r;
   const n = Math.max(1, Number(req.nextUrl.searchParams.get("n") ?? 1) | 0);
   try {
+    if (req.nextUrl.searchParams.get("diag") === "1" && r.ctx.isManager) return NextResponse.json(await renderDiag(r.file), { headers: { "Cache-Control": "no-store" } });
     if (wantText) return NextResponse.json(await pageText(r.file, n), { headers: { "Cache-Control": "private, no-store" } });
     const w = Number(req.nextUrl.searchParams.get("w") ?? 1200) || 1200;
     const img = await renderPage(r.file, n, w, wmOpts(r.ctx));
     return new NextResponse(new Uint8Array(img), {
-      headers: { "Content-Type": "image/webp", "Cache-Control": "private, max-age=120", "X-Content-Type-Options": "nosniff", "Content-Disposition": "inline" },
+      headers: { "Content-Type": "image/webp", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Disposition": "inline" },
     });
   } catch (e) {
     return new NextResponse(e instanceof Error ? e.message : "渲染失败", { status: 500 });

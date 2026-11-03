@@ -1,5 +1,7 @@
 import "server-only";
 import path from "node:path";
+import fs from "node:fs";
+import { createRequire } from "node:module";
 import mammoth from "mammoth";
 import ExcelJS from "exceljs";
 import { createCanvas, loadImage, GlobalFonts, type SKRSContext2D } from "@napi-rs/canvas";
@@ -69,24 +71,80 @@ export async function fileBuffer(f: VdrFile) {
 async function pdfjs() {
   return import("pdfjs-node/legacy/build/pdf.mjs");
 }
-const PDFJS_DIR = path.join(process.cwd(), "node_modules", "pdfjs-node");
+
+/* pdf.js 的 CMap（日文 / 中文编码表）与标准字体：用本模块自己的 fs 读取，并在多个候选目录中查找，
+   避免依赖运行环境的 process.getBuiltinModule 与相对路径（Vercel 函数目录与本地不同） */
+const PDFJS_DIRS = (() => {
+  const dirs = [path.join(process.cwd(), "node_modules", "pdfjs-node")];
+  try { dirs.push(path.dirname(createRequire(path.join(process.cwd(), "package.json")).resolve("pdfjs-node/package.json"))); } catch {}
+  return [...new Set(dirs)];
+})();
+const renderWarnings: string[] = [];
+const warnOnce = (m: string) => { if (renderWarnings.length < 50 && !renderWarnings.includes(m)) renderWarnings.push(m); console.warn("[vdr render]", m); };
+async function readPdfjsAsset(sub: string, name: string) {
+  for (const d of PDFJS_DIRS) {
+    const p = path.join(d, sub, name);
+    try { return new Uint8Array(await fs.promises.readFile(p)); } catch {}
+  }
+  warnOnce(`找不到 pdf.js 资源 ${sub}/${name}（已查找：${PDFJS_DIRS.join("，")}）`);
+  throw new Error(`Unable to load ${sub}/${name}`);
+}
+class FsCMapReaderFactory {
+  constructor(_o: { baseUrl?: string | null; isCompressed?: boolean }) {}
+  async fetch({ name }: { name: string }) {
+    return { cMapData: await readPdfjsAsset("cmaps", `${name}.bcmap`), isCompressed: true };
+  }
+}
+class FsStandardFontDataFactory {
+  constructor(_o: { baseUrl?: string | null }) {}
+  async fetch({ filename }: { filename: string }) {
+    return readPdfjsAsset("standard_fonts", filename);
+  }
+}
 
 async function pdfDoc(f: VdrFile) {
   const k = keyOf(f);
   let p = pdfCache.get(k);
   if (!p) {
     p = (async () => {
+      ensureFonts();
       const lib = await pdfjs();
       const data = new Uint8Array(await fileBuffer(f));
       return lib.getDocument({
-        data, cMapUrl: path.join(PDFJS_DIR, "cmaps") + "/", cMapPacked: true,
-        standardFontDataUrl: path.join(PDFJS_DIR, "standard_fonts") + "/", isEvalSupported: false, disableFontFace: true, useSystemFonts: false,
+        data, cMapUrl: "/pdfjs/cmaps/", cMapPacked: true, standardFontDataUrl: "/pdfjs/standard_fonts/",
+        CMapReaderFactory: FsCMapReaderFactory, StandardFontDataFactory: FsStandardFontDataFactory, useWorkerFetch: false,
+        isEvalSupported: false, disableFontFace: true, useSystemFonts: false,
       }).promise;
     })();
     pdfCache.set(k, p, 1);
     p.catch(() => pdfCache.set(k, Promise.reject(new Error("PDF 解析失败")), 1));
   }
   return p;
+}
+
+/** 管理员诊断：运行环境、字体与 pdf.js 资源是否可用 */
+export async function renderDiag(f: VdrFile) {
+  ensureFonts();
+  const families = GlobalFonts.families.map((x) => x.family);
+  const assets = await Promise.all(["cmaps/UniJIS-UTF16-H.bcmap", "cmaps/Adobe-Japan1-UCS2.bcmap", "standard_fonts/FoxitSerif.pfb"].map(async (a) => {
+    const [sub, name] = a.split("/");
+    try { return `${a}: ${(await readPdfjsAsset(sub, name)).length} bytes`; } catch { return `${a}: 缺失`; }
+  }));
+  let fonts: unknown = null;
+  if (previewKind(f.contentType, f.name) === "pdf") {
+    const doc = await pdfDoc(f);
+    const page = await doc.getPage(1);
+    const ops = await page.getOperatorList();
+    const names = new Set<string>();
+    ops.fnArray.forEach((fn: number, i: number) => { if (fn === 37) names.add(String(ops.argsArray[i]?.[0])); });
+    fonts = [...names].map((n) => {
+      try { const o = page.commonObjs.get(n); return { id: n, name: o?.name, loadedName: o?.loadedName, missingFile: o?.missingFile, fallbackName: o?.fallbackName, isType3: o?.isType3Font }; } catch (e) { return { id: n, error: String(e) }; }
+    });
+  }
+  return {
+    node: process.version, cwd: process.cwd(), getBuiltinModule: typeof (process as unknown as { getBuiltinModule?: unknown }).getBuiltinModule,
+    pdfjsDirs: PDFJS_DIRS.map((d) => `${d} ${fs.existsSync(d) ? "✓" : "✗"}`), assets, fontsReady, families: families.slice(0, 40), fonts, warnings: renderWarnings,
+  };
 }
 
 export type WmOpts = { text: string; opacity: number; size: number; density: number };
