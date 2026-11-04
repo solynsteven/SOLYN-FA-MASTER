@@ -8,6 +8,8 @@ import { fmtDateTime } from "@/lib/format";
 import { logPrint, listAnnotations, addAnnotation, deleteAnnotation } from "@/app/p/[projectId]/vdr/actions";
 import type { VdrCap, VdrDownloadMode } from "@/db/schema";
 import type { VFile } from "./types";
+
+export type ViewerFile = Pick<VFile, "id" | "name" | "lv">;
 import { cn, Alert, Modal } from "@/components/ui";
 
 type Info = {
@@ -36,7 +38,7 @@ export function wmBackground(text: string, opacity: number, size: number, densit
  *  - 无「复制文本」权限时禁止选择 / 复制 / 右键 / 拖拽；窗口失焦时遮挡内容
  *  - Fence View：仅鼠标附近区域可见
  */
-export function Viewer({ projectId, file, onClose, autoDownload }: { projectId: string; file: VFile; onClose: () => void; autoDownload?: boolean }) {
+export function Viewer({ projectId, file, onClose, autoDownload }: { projectId: string; file: ViewerFile; onClose: () => void; autoDownload?: boolean }) {
   const [info, setInfo] = useState<Info | null>(null);
   const [err, setErr] = useState("");
   const [parts, setParts] = useState<string[]>([]);
@@ -287,7 +289,7 @@ function AnnotationPanel({ projectId, fileId, page, canAdd }: { projectId: strin
   );
 }
 
-function DownloadDialog({ projectId, file, info, onClose }: { projectId: string; file: VFile; info: Info; onClose: () => void }) {
+function DownloadDialog({ projectId, file, info, onClose }: { projectId: string; file: ViewerFile; info: Info; onClose: () => void }) {
   const [mode, setMode] = useState<VdrDownloadMode>(info.downloadModes[0]);
   const maxDate = new Date(Date.now() + info.irm.expiryDays * 86400_000).toISOString().slice(0, 10);
   const [expires, setExpires] = useState(maxDate);

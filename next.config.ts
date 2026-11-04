@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
     "/p/[projectId]/vdr/file/[fileId]": ["./assets/fonts/**/*", "./node_modules/pdfjs-node/legacy/build/**/*", "./node_modules/pdfjs-node/cmaps/**/*", "./node_modules/pdfjs-node/standard_fonts/**/*"],
     "/p/[projectId]/vdr/file/[fileId]/page": ["./assets/fonts/**/*", "./node_modules/pdfjs-node/legacy/build/**/*", "./node_modules/pdfjs-node/cmaps/**/*", "./node_modules/pdfjs-node/standard_fonts/**/*"],
     "/p/[projectId]/vdr/file/[fileId]/download": ["./assets/fonts/**/*", "./node_modules/pdfjs-node/legacy/build/**/*", "./node_modules/pdfjs-node/cmaps/**/*", "./node_modules/pdfjs-node/standard_fonts/**/*", "./node_modules/pdfkit/js/**/*"],
+    "/pdfjs/[...path]": ["./node_modules/pdfjs-node/cmaps/**/*", "./node_modules/pdfjs-node/standard_fonts/**/*"],
     "/p/[projectId]/vdr/nda/certificate": ["./assets/fonts/**/*", "./public/brand/**/*", "./node_modules/pdfkit/js/**/*"],
   },
 };

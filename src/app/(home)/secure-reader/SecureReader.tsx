@@ -61,7 +61,9 @@ export function SecureReader() {
       } else {
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-        const pdf = await pdfjs.getDocument({ data: plain, isEvalSupported: false }).promise;
+        const assetBase = `${window.location.origin}/pdfjs/`;
+        // 未嵌入字体的日文 / 中文 PDF 需要 CMap；缺失的字体用本机系统字体替代显示
+        const pdf = await pdfjs.getDocument({ data: plain, isEvalSupported: false, cMapUrl: `${assetBase}cmaps/`, cMapPacked: true, standardFontDataUrl: `${assetBase}standard_fonts/`, useSystemFonts: true }).promise;
         pdfRef.current = pdf;
         setDoc({ ...base, pages: pdf.numPages });
       }

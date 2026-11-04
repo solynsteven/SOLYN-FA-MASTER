@@ -13,7 +13,6 @@ import { makeResolver } from "@/lib/vdr/resolve";
 import { fmtDateTime } from "@/lib/format";
 import type { VdrLevel } from "@/db/schema";
 import { deleteFolder, deleteFile, createFolder, renameFolder } from "@/app/p/[projectId]/vdr/actions";
-import { Viewer } from "./Viewer";
 import { LevelTag, PhaseDialog, NameDialog, UploadDialog, FileEditDialog, PermDialog, SecurityDialog, ShareDialog, UnlockDialog, LogDialog } from "./dialogs";
 import type { VFolder, VFile, VPerm, VMember, VGroup, CodeOpt, Me } from "./types";
 
@@ -45,7 +44,10 @@ export function VdrClient(p: Props) {
     | { k: "perm"; target: { type: "folder" | "file"; id: string; name: string; folderId: string | null } } | { k: "unlock"; phase: VFolder } | { k: "log"; folder: VFolder }
     | { k: "security"; type: "folder" | "file"; id: string; name: string; folderId: string } | { k: "share"; file: VFile } | null
   >(null);
-  const [viewing, setViewing] = useState<{ file: VFile; download?: boolean } | null>(null);
+  /** 在线预览在新的浏览器标签页中打开（同一文件复用同一标签页） */
+  const setViewing = ({ file, download }: { file: VFile; download?: boolean }) => {
+    window.open(`/p/${projectId}/vdr/view/${file.id}${download ? "?dl=1" : ""}`, `vdr-${file.id}`);
+  };
   const del = useAction();
 
   // 管理员“按权限组视角预览”：在浏览器中用同一套规则重新计算
@@ -327,7 +329,6 @@ export function VdrClient(p: Props) {
       {dialog?.k === "share" && <ShareDialog projectId={projectId} file={dialog.file} canPrint={canManage || has(dialog.file.caps, "print")} onClose={() => setDialog(null)} />}
       {dialog?.k === "unlock" && <UnlockDialog projectId={projectId} phase={dialog.phase} onClose={() => setDialog(null)} />}
       {dialog?.k === "log" && <LogDialog projectId={projectId} folder={dialog.folder} onClose={() => setDialog(null)} />}
-      {viewing && <Viewer projectId={projectId} file={viewing.file} autoDownload={viewing.download} onClose={() => setViewing(null)} />}
     </div>
     </>
   );
