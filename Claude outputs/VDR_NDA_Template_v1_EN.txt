@@ -1,0 +1,109 @@
+VIRTUAL DATA ROOM CONFIDENTIALITY AGREEMENT
+
+Agreement No.: NDA-{{项目代号}}-{{数据室ID}}
+Date of Signature: {{日期}}
+
+Recipient (Signatory): {{用户名}}
+Email: {{邮箱}}
+Organization: {{机构}}
+
+RECITALS
+(1) The shareholders of the company concerned in "{{项目名}}" (the "Project") and their affiliates (collectively, the "Disclosing Party") intend to provide information to prospective counterparties and their advisers in connection with a possible transfer of shares, transfer of assets, capital increase, merger or other transaction relating to the Project (the "Transaction").
+(2) Solyn Advisory (the "Financial Adviser") has been engaged by the Disclosing Party to manage the provision of such information through the SOLYN FA MASTER virtual data room (Data Room ID: {{数据室ID}}; the "Data Room").
+(3) The Recipient and its organization wish to access the Data Room for the purpose of evaluating whether to participate in the Transaction.
+
+Accordingly, before accessing the Data Room, the Recipient agrees to the following terms. The Recipient confirms that he or she is authorized to sign this Agreement on behalf of his or her organization and to bind that organization. If the organization has entered into a separate confidentiality agreement with the Disclosing Party or the Financial Adviser, this Agreement supplements it, and in case of any inconsistency the provision more protective of the Confidential Information shall prevail.
+
+Article 1  Definitions
+1.1 "Confidential Information" means all information and materials relating to the Project, the Transaction, the target company and its affiliates that the Recipient obtains from the Disclosing Party, the Financial Adviser or their representatives through the Data Room, the Q&A process, management interviews, site visits, email or any other means, in any form (written, electronic, oral, visual or otherwise), whether or not marked "confidential", and whether obtained before or after the signature of this Agreement, including without limitation financial data, business plans, customer and supplier information, contracts, personnel and compensation information, technical materials, intellectual property, and legal and tax matters, together with all analyses, compilations, forecasts, memoranda, models and other materials prepared by the Recipient on the basis thereof ("Derivative Materials").
+1.2 The fact that the Transaction is under discussion, the terms and status of the Transaction, the Disclosing Party's intention to sell or consider a sale, and the existence and contents of the Data Room shall also constitute Confidential Information.
+1.3 "Representatives" means the directors, corporate auditors, officers and employees of the Recipient's organization, and its legal, accounting, tax and financial advisers and financing sources engaged for the Transaction who are subject to professional duties of confidentiality.
+1.4 "Personal Information" means any information contained in the Confidential Information that identifies a specific individual, including information about employees, customers and personnel of counterparties.
+
+Article 2  Exceptions
+The following shall not constitute Confidential Information, provided that the Recipient bears the burden of proof:
+(1) information that was publicly available at the time of receipt, or subsequently becomes publicly available other than through a breach of this Agreement by the Recipient or its Representatives;
+(2) information that the Recipient can demonstrate by written records was lawfully in its possession free of any duty of confidentiality before receipt from the Disclosing Party or the Financial Adviser;
+(3) information lawfully obtained by the Recipient from a third party entitled to disclose it and not subject to a duty of confidentiality; and
+(4) information independently developed by the Recipient without use of the Confidential Information.
+
+Article 3  Limitation of Purpose
+3.1 The Recipient shall use the Confidential Information solely for the purpose of evaluating, negotiating and, if applicable, completing the Transaction (the "Permitted Purpose"), and for no other purpose, including without limitation competing with the target company, soliciting its customers or employees, trading in securities, or for the benefit of any third party.
+3.2 The Recipient shall not use the Confidential Information to reverse engineer, replicate the products or business model of, or otherwise harm the interests of, the target company or the Disclosing Party.
+
+Article 4  Confidentiality and Permitted Disclosure
+4.1 The Recipient shall keep the Confidential Information strictly confidential and protect it with no less care than it uses for its own confidential information of similar importance, and in no event with less than reasonable care.
+4.2 The Recipient shall not disclose any Confidential Information to any third party without the prior written consent of the Financial Adviser, except to its Representatives subject to the following conditions:
+(1) the Representative has a genuine need to know for the Permitted Purpose;
+(2) the Recipient has informed the Representative of the confidential nature of the information and of the obligations under this Agreement; and
+(3) the Representative is bound by confidentiality obligations no less protective than this Agreement.
+The Recipient shall be liable for any breach of this Agreement by its Representatives as if it were its own breach.
+4.3 Any Representative requiring access to the Data Room shall be separately invited by the Financial Adviser through the Data Room, be issued an individual account and sign this Agreement personally. The Recipient shall not access the Data Room on behalf of any other person.
+
+Article 5  Rules for Use of the Data Room
+5.1 Accounts are strictly personal. The Recipient shall not transfer, lend or share its account, password, two-factor authentication device or invitation link with any other person, and shall immediately change its password and notify the Financial Adviser if it suspects that its account may have been used by another person.
+5.2 The Recipient may access, preview, print, download or copy materials only within the permissions granted by the Financial Adviser, and shall not attempt to circumvent or interfere with any security measure of the Data Room, including without limitation access permissions, two-factor authentication, IP address and access-time restrictions, dynamic watermarks, Fence View, copy protection, print limits, and the expiry and revocation mechanisms of controlled (IRM) files.
+5.3 The Recipient shall not reproduce or extract the contents of the Data Room by photographing, screen recording, screenshots, OCR, transcription, automated scraping (crawlers or scripts) or any other means, and shall not remove, obscure or alter any watermark, trace number or other marking in materials it is permitted to download or print.
+5.4 The Recipient shall not upload any Confidential Information to public cloud storage, generative artificial intelligence services, translation services or any other third-party platform, except internal systems managed by the Recipient's organization that offer an equivalent level of security and do not use the data for model training.
+5.5 Controlled files (.fasec) can be opened only online in the SOLYN FA MASTER Secure Reader. The Recipient acknowledges and agrees that the Financial Adviser may at any time remotely revoke any controlled file or adjust its validity period, print allowance and copy permission, and that a revoked file can no longer be opened.
+5.6 The Recipient shall submit questions and information requests only through the Q&A function of the Data Room or to the contact person designated by the Financial Adviser.
+
+Article 6  Access Logs and Monitoring
+6.1 The Recipient acknowledges and agrees that the Data Room records every login, access, preview, print, download, annotation, Q&A entry and other activity, including the time, IP address and device and browser information, and that every preview and downloaded copy bears a visible watermark containing the Recipient's name, email, organization, time and IP address.
+6.2 The Disclosing Party and the Financial Adviser may review, analyze and retain such records for the purposes of managing the Transaction, protecting the Confidential Information and investigating possible breaches, and may use them as evidence where necessary.
+
+Article 7  No Contact
+Without the prior written consent of the Financial Adviser, neither the Recipient nor its Representatives shall, directly or indirectly, contact any shareholder, director, employee, customer, supplier, creditor, financial institution, business partner or regulator of the target company or its affiliates in connection with the Transaction or the Confidential Information. All communications concerning the Transaction shall be conducted through the Financial Adviser.
+
+Article 8  Non-Solicitation
+For a period of twenty-four (24) months from the date of signature of this Agreement, neither the Recipient nor its organization shall, directly or indirectly, solicit or employ any director or management employee of the target company or its subsidiaries, or any other employee of whom it became aware through the Data Room; provided, however, that general recruitment advertisements addressed to the public and not targeted at such persons shall not be restricted.
+
+Article 9  Personal Information and Sensitive Information
+9.1 The Recipient shall handle Personal Information contained in the Confidential Information in accordance with applicable personal data protection laws (including the Act on the Protection of Personal Information of Japan and the relevant laws of the Recipient's jurisdiction), use it only to the extent necessary for the Permitted Purpose, and shall not re-identify, compile or provide it to any third party.
+9.2 Competitively sensitive information designated by the Financial Adviser (such as pricing, costs and customer terms) shall be handled only by members of a "Clean Team" approved by the Financial Adviser, in compliance with applicable competition laws.
+
+Article 10  Inside Information
+The Recipient acknowledges that the Confidential Information may include material non-public information concerning a listed company (inside information). Until such information is made public, neither the Recipient nor its Representatives shall trade in the relevant securities, communicate such information to others or recommend that others trade, and they shall comply with the Financial Instruments and Exchange Act of Japan and other applicable securities laws.
+
+Article 11  No Representations or Warranties
+11.1 Neither the Disclosing Party nor the Financial Adviser makes any representation or warranty, express or implied, as to the accuracy, completeness or fitness of the Confidential Information, and neither shall be liable for any loss arising from the Recipient's use of the Confidential Information, except as otherwise provided in definitive transaction documents.
+11.2 This Agreement does not create any obligation of the Disclosing Party to sell, or of the Recipient to purchase, any shares or assets, and does not constitute an offer or an invitation to offer. No party shall be bound in respect of the Transaction until definitive transaction documents are executed. The Disclosing Party and the Financial Adviser reserve the right, at any time and without giving reasons, to change the transaction process, terminate discussions with the Recipient or enter into a transaction with any other party.
+
+Article 12  Legally Required Disclosure
+If the Recipient or its Representatives are required by law, court order, a regulatory authority or a stock exchange to disclose any Confidential Information, the Recipient shall, to the extent legally permitted, promptly notify the Financial Adviser in writing in advance, cooperate with the Disclosing Party in seeking protective measures, and disclose only the minimum extent legally required.
+
+Article 13  Return and Destruction
+13.1 Upon termination of the Transaction, the Recipient's decision not to participate in the Transaction, or the written request of the Financial Adviser, the Recipient shall, within ten (10) business days, return or destroy all Confidential Information and Derivative Materials (including electronic copies, printouts and backups) and, upon request, provide written confirmation thereof.
+13.2 Copies that must be retained under applicable laws, regulations or internal compliance rules, and copies in automatic backup systems that cannot be immediately deleted, may be retained for the necessary period, but shall remain subject to this Agreement and shall not be used for any other purpose.
+13.3 The Recipient acknowledges that the Financial Adviser may at the same time terminate its access to the Data Room and remotely revoke all of its controlled files.
+
+Article 14  Breach Notification
+If the Recipient becomes aware of, or reasonably suspects, any unauthorized disclosure, access or use of the Confidential Information (including account compromise, loss of a device or misdirected email), it shall notify the Financial Adviser within twenty-four (24) hours, describe the facts known to it, take all reasonable measures to prevent further loss, and cooperate with any investigation by the Disclosing Party and the Financial Adviser.
+
+Article 15  Remedies
+15.1 The Recipient acknowledges that a breach of this Agreement may cause the Disclosing Party irreparable harm for which monetary damages alone would not be an adequate remedy, and that the Disclosing Party shall be entitled, in addition to damages, to seek injunctive relief, interim measures or other equitable relief without proof of actual loss or posting of security, to the extent permitted by law.
+15.2 The Recipient shall indemnify the Disclosing Party, the target company and the Financial Adviser for all losses, including reasonable legal and investigation costs, arising from any breach of this Agreement by the Recipient or its Representatives.
+
+Article 16  Term
+This Agreement shall take effect upon the Recipient's electronic signature. The confidentiality obligations hereunder shall continue for three (3) years from the later of the termination of the Transaction and the Recipient's last access to the Data Room; for Personal Information and Confidential Information constituting trade secrets, they shall continue for as long as such information remains Personal Information or a trade secret. Article 8 shall apply for the period specified therein.
+
+Article 17  Electronic Signature
+The Recipient agrees to sign this Agreement electronically. By reading this Agreement in full within the Data Room, checking the box of consent and entering his or her name as an electronic signature, the Recipient shall be deemed to have signed this Agreement personally, with the same legal effect as a handwritten signature. The time of signature, IP address, device information and hash value of the Agreement recorded by the Data Room may serve as evidence of the fact of signature and of the contents of the Agreement. If this Agreement is updated, the Recipient must sign again in order to continue accessing the Data Room.
+
+Article 18  Miscellaneous
+18.1 The Recipient shall not assign its rights or obligations under this Agreement without the written consent of the Financial Adviser.
+18.2 If any provision of this Agreement is held invalid or unenforceable, the remaining provisions shall not be affected.
+18.3 No failure or delay in exercising any right under this Agreement shall operate as a waiver of that right.
+18.4 The Disclosing Party and the target company are third-party beneficiaries of this Agreement and are entitled to enforce it directly.
+18.5 This Agreement is available in Chinese, Japanese and English versions. The language version signed by the Recipient in the Data Room shall be the original of this Agreement.
+
+Article 19  Governing Law and Jurisdiction
+This Agreement shall be governed by and construed in accordance with the laws of Japan. The Tokyo District Court shall have exclusive jurisdiction of the first instance over all disputes arising out of or in connection with this Agreement.
+
+————————————————————
+ACKNOWLEDGEMENT BY THE RECIPIENT
+I have read and understood all provisions of this Agreement in full, confirm that I am authorized to sign this Agreement on behalf of my organization, agree that I and my organization are bound by this Agreement, and acknowledge that all of my activities in the Data Room are recorded and that every copy bears a watermark identifying me.
+
+Recipient: {{用户名}} ({{机构}})
+Email: {{邮箱}}
+Date of Signature: {{日期}}

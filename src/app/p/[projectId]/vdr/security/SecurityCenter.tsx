@@ -12,6 +12,7 @@ import { levelMeta, levelOf, VDR_ACTION_LABEL, DOWNLOAD_MODES } from "@/lib/vdr/
 import { fmtDateTime } from "@/lib/format";
 import type { VdrCap, VdrGroupPolicy, VdrDownloadMode, WatermarkField, IrmPolicy } from "@/db/schema";
 import type { VdrSettingsView } from "@/lib/vdr/groups";
+import { NDA_TEMPLATES, type NdaLang } from "@/lib/vdr/nda-templates";
 import {
   saveGroup, deleteGroup, updateMemberAccess, revokeSessions, inviteMember, resendInvitation, revokeInvitation, saveNda, saveSecuritySettings,
   revokeIrm, revokeIrmOfUser, updateIrmPolicy, restoreIrm, irmPassword, type GroupInput,
@@ -368,7 +369,16 @@ function NdaTab({ projectId, settings, signatures, members }: { projectId: strin
         {a.message && <Alert kind="success">{a.message}</Alert>}
         <div className="card px-5 py-4">
           <div className="flex items-center gap-2 text-sm text-brand-mist"><Toggle checked={req} onChange={setReq} />进入数据室前必须在线签署 NDA（项目管理员除外）<span className="ml-auto font-num text-2xs text-brand-sage">当前版本 v{settings.ndaVersion}</span></div>
-          <label className="mt-4 block text-xs text-brand-sage">协议标题<input className="input mt-1" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+          <div className="mt-4 flex flex-wrap items-center gap-1.5 text-xs text-brand-sage">载入标准模板：
+            {(Object.keys(NDA_TEMPLATES) as NdaLang[]).map((k) => (
+              <ConfirmButton key={k} className="rounded border border-line px-2 py-0.5 text-2xs hover:border-brand-sage hover:text-brand-paper" title={`载入${NDA_TEMPLATES[k].label}模板`} confirmText="载入"
+                body={<>用 Solyn 标准保密协议（{NDA_TEMPLATES[k].label}）替换当前编辑框中的标题和正文？载入后仍需点「保存 NDA 设置」才会生效。</>}
+                onConfirm={() => { setTitle(NDA_TEMPLATES[k].title); setTpl(NDA_TEMPLATES[k].body); }}>
+                {NDA_TEMPLATES[k].label}
+              </ConfirmButton>
+            ))}
+          </div>
+          <label className="mt-3 block text-xs text-brand-sage">协议标题<input className="input mt-1" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
           <div className="mt-4 flex flex-wrap items-center gap-1 text-xs text-brand-sage">插入动态标签：
             {TAGS.map((t) => <button key={t} type="button" className="rounded border border-line px-1.5 py-0.5 text-2xs hover:border-brand-sage hover:text-brand-paper" onClick={() => insert(t)}>{`{{${t}}}`}</button>)}
           </div>
