@@ -12,7 +12,12 @@ import { logVdr } from "./events";
 export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 
 export async function siteOrigin() {
-  if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
+  // SITE_URL 可能被填成不带 https:// 的域名；邮件里的链接必须是完整网址，否则在网页邮箱中会被当作相对地址打开
+  const env = process.env.SITE_URL?.trim();
+  if (env) {
+    const withProto = /^https?:\/\//i.test(env) ? env : `${/^(localhost|127\.)/.test(env) ? "http" : "https"}://${env}`;
+    try { return new URL(withProto).origin; } catch {}
+  }
   try {
     const h = await headers();
     const host = h.get("x-forwarded-host") ?? h.get("host");
