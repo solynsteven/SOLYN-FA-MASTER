@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { db } from "@/db";
 import { vdrInvitations, vdrGroups, projectMembers, vdrPermissions, projects, type VdrCap, type VdrInvitation, type User } from "@/db/schema";
 import { sendMail, mailHtml } from "@/lib/mail";
-import { listGroups } from "./groups";
+import { SHARE_DEFAULT_POLICY, listGroups } from "./groups";
 import { levelOf } from "./caps";
 import { logVdr } from "./events";
 
@@ -24,7 +24,10 @@ export async function siteOrigin() {
 
 /** 外部分享专用权限组（默认不可见，仅靠文件级用户规则开放单个文件） */
 async function ensureShareGroup(projectId: string) {
-  await db.insert(vdrGroups).values({ projectId, code: "SHARE", name: "外部分享", description: "通过「外部分享」邀请的人员，只能看到被分享的文件", kind: "custom", defaultLevel: "L0", defaultCaps: [], sortOrder: 900 }).onConflictDoNothing();
+  await db.insert(vdrGroups).values({
+    projectId, code: "SHARE", name: "外部分享", description: "通过「外部分享」邀请的人员，只能看到被分享的文件", kind: "custom", defaultLevel: "L0", defaultCaps: [], sortOrder: 900,
+    policy: SHARE_DEFAULT_POLICY,
+  }).onConflictDoNothing();
 }
 
 export async function createInvitation(i: {

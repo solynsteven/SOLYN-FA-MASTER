@@ -57,7 +57,7 @@ export async function saveGroup(projectId: string, g: GroupInput) {
     const from = toDate(p.accessFrom), until = toDate(p.accessUntil);
     if (from && until && from >= until) throw new Error("访问开始时间须早于到期时间");
     const policy: VdrGroupPolicy = {
-      requireMfa: !!p.requireMfa, ipAllowlist, emailDomains, window: w,
+      requireMfa: !!p.requireMfa, requireNda: !!p.requireNda, ipAllowlist, emailDomains, window: w,
       accessFrom: from?.toISOString() ?? null, accessUntil: until?.toISOString() ?? null,
       maxSessions: p.maxSessions && p.maxSessions > 0 ? Math.min(20, Math.floor(p.maxSessions)) : null,
     };

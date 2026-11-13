@@ -15,9 +15,20 @@ export async function ensureGroups(projectId: string) {
   }))).onConflictDoNothing();
 }
 
+/** 外部分享对象默认：必须先签署 NDA 并开启二次验证（可在安全中心的权限组中调整） */
+export const SHARE_DEFAULT_POLICY = { requireNda: true, requireMfa: true };
+
 export async function listGroups(projectId: string): Promise<VdrGroupRow[]> {
   await ensureGroups(projectId);
-  return db.select().from(vdrGroups).where(eq(vdrGroups.projectId, projectId)).orderBy(asc(vdrGroups.sortOrder), asc(vdrGroups.code));
+  const rows = await db.select().from(vdrGroups).where(eq(vdrGroups.projectId, projectId)).orderBy(asc(vdrGroups.sortOrder), asc(vdrGroups.code));
+  // 旧版本建立的「外部分享」组没有这两项设置：补上默认值（管理员保存过的明确设置不覆盖）
+  for (const g of rows) {
+    if (g.code === "SHARE" && g.policy.requireNda === undefined) {
+      g.policy = { ...SHARE_DEFAULT_POLICY, ...g.policy, requireNda: true };
+      await db.update(vdrGroups).set({ policy: g.policy }).where(eq(vdrGroups.id, g.id));
+    }
+  }
+  return rows;
 }
 
 export const groupDefaultsOf = (groups: VdrGroupRow[]): Record<string, VdrCap[]> => Object.fromEntries(groups.map((g) => [g.code, normCaps(g.defaultCaps)]));

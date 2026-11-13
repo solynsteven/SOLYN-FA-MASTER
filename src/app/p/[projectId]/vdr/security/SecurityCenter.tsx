@@ -88,6 +88,7 @@ export function SecurityCenter(p: {
 function policySummary(pl: VdrGroupPolicy) {
   const out: string[] = [];
   if (pl.requireMfa) out.push("MFA");
+  if (pl.requireNda) out.push("NDA");
   if (pl.ipAllowlist?.length) out.push(`IP×${pl.ipAllowlist.length}`);
   if (pl.emailDomains?.length) out.push(`@${pl.emailDomains.join(" @")}`);
   if (pl.window) out.push(`${pl.window.days?.length ? "周" + pl.window.days.map((d) => WD[d - 1]).join("") : "每天"} ${pl.window.start}–${pl.window.end}`);
@@ -147,7 +148,7 @@ function GroupDialog({ projectId, group, onClose }: { projectId: string; group: 
   const pl = group?.policy ?? {};
   const [f, setF] = useState({
     code: group?.code ?? "", name: group?.name ?? "", description: group?.description ?? "", kind: (group?.kind ?? "buyer") as Kind, caps: group?.caps ?? [],
-    requireMfa: !!pl.requireMfa, ip: (pl.ipAllowlist ?? []).join("\n"), domains: (pl.emailDomains ?? []).join(", "),
+    requireMfa: !!pl.requireMfa, requireNda: !!pl.requireNda, ip: (pl.ipAllowlist ?? []).join("\n"), domains: (pl.emailDomains ?? []).join(", "),
     winOn: !!pl.window, days: pl.window?.days ?? [1, 2, 3, 4, 5], start: pl.window?.start ?? "09:00", end: pl.window?.end ?? "19:00", tz: pl.window?.tz ?? "Asia/Tokyo",
     from: toLocal(pl.accessFrom), until: toLocal(pl.accessUntil), maxSessions: pl.maxSessions ?? 0,
   });
@@ -155,7 +156,7 @@ function GroupDialog({ projectId, group, onClose }: { projectId: string; group: 
   const save = () => a.exec(() => saveGroup(projectId, {
     id: group?.id, code: f.code, name: f.name, description: f.description, kind: f.kind, caps: f.caps,
     policy: {
-      requireMfa: f.requireMfa, ipAllowlist: f.ip.split(/[\s,;]+/).filter(Boolean), emailDomains: f.domains.split(/[\s,;]+/).filter(Boolean),
+      requireMfa: f.requireMfa, requireNda: f.requireNda, ipAllowlist: f.ip.split(/[\s,;]+/).filter(Boolean), emailDomains: f.domains.split(/[\s,;]+/).filter(Boolean),
       window: f.winOn ? { days: f.days, start: f.start, end: f.end, tz: f.tz } : null, accessFrom: fromLocal(f.from), accessUntil: fromLocal(f.until), maxSessions: f.maxSessions || null,
     },
   }), () => { router.refresh(); onClose(); });
@@ -177,6 +178,7 @@ function GroupDialog({ projectId, group, onClose }: { projectId: string; group: 
       <div className="mt-5 border-t border-line pt-4 text-xs font-medium text-brand-mist">准入风控</div>
       <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3">
         <div className="col-span-2 flex items-center gap-2 text-sm text-brand-mist"><Toggle checked={f.requireMfa} onChange={(v) => set("requireMfa", v)} />强制二次验证（验证器 App；邮箱验证码作为备用）</div>
+        <div className="col-span-2 flex items-center gap-2 text-sm text-brand-mist"><Toggle checked={f.requireNda} onChange={(v) => set("requireNda", v)} />强制签署 NDA（即使项目未开启 NDA，本组成员也须先签署）</div>
         <label className="text-xs text-brand-sage">IP 白名单（每行一条，支持 CIDR，留空不限制）
           <textarea className="input mt-1 h-20 font-num text-xs" value={f.ip} onChange={(e) => set("ip", e.target.value)} placeholder={"203.0.113.0/24\n2001:db8::/32"} />
         </label>

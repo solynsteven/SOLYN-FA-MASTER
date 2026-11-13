@@ -22,7 +22,7 @@ export default async function NdaPage({ params }: { params: Promise<{ projectId:
   const s = c.settings;
   const sigs = await db.select().from(vdrNdaSignatures).where(and(eq(vdrNdaSignatures.projectId, projectId), eq(vdrNdaSignatures.userId, user.id))).orderBy(desc(vdrNdaSignatures.signedAt));
   const current = sigs.find((x) => x.version === s.ndaVersion);
-  if (!s.ndaRequired && !sigs.length) redirect(`/p/${projectId}/vdr`);
+  if (!s.ndaRequired && !c.group?.policy.requireNda && !sigs.length) redirect(`/p/${projectId}/vdr`);
   const content = current?.content ?? renderNda(s.ndaTemplate, { name: user.name, email: user.email, org: c.member?.organization ?? null, projectName: project.name, projectCode: project.code, projectId, date: new Date() });
   return (
     <>

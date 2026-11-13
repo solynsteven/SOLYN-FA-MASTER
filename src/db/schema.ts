@@ -337,6 +337,7 @@ export const vdrEvents = pgTable(
 
 export type VdrGroupPolicy = {
   requireMfa?: boolean;
+  requireNda?: boolean; // 即使项目未开启 NDA，本组成员也必须先签署
   ipAllowlist?: string[]; // IPv4 / IPv6 / CIDR
   emailDomains?: string[]; // 如 buyer-a.co.jp
   window?: { days: number[]; start: string; end: string; tz: string } | null; // 访问时段（周一=1 … 周日=7）

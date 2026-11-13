@@ -18,7 +18,7 @@ export async function signNda(projectId: string, input: { version: number; signe
     if (!c) throw new Error("无权访问");
     if (c.fail && c.fail.code !== "nda") throw new Error(c.fail.message);
     const s = c.settings;
-    if (!s.ndaRequired) throw new Error("本项目未要求签署 NDA");
+    if (!s.ndaRequired && !c.group?.policy.requireNda) throw new Error("本项目未要求签署 NDA");
     if (input.version !== s.ndaVersion) throw new Error("协议已更新，请刷新页面后重新阅读");
     if (!input.agree) throw new Error("请勾选确认已阅读并同意");
     const name = input.signedName.trim();

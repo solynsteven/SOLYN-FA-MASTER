@@ -117,7 +117,7 @@ export const vdrContext = cache(async (projectId: string) => {
       await logVdr(projectId, access.user.id, "session_revoke", { detail: { reason: "concurrent", session: x.id } });
     }
   }
-  if (!fail && settings.ndaRequired) {
+  if (!fail && (settings.ndaRequired || pol.requireNda)) {
     const [sig] = await db.select({ id: vdrNdaSignatures.id }).from(vdrNdaSignatures)
       .where(and(eq(vdrNdaSignatures.projectId, projectId), eq(vdrNdaSignatures.userId, access.user.id), eq(vdrNdaSignatures.version, settings.ndaVersion))).limit(1);
     if (!sig) fail = { code: "nda", message: "进入数据室前，请先在线阅读并签署保密协议（NDA）。" };
