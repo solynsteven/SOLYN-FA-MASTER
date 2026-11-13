@@ -296,7 +296,7 @@ export async function setPermissions(projectId: string, targetType: "folder" | "
     const [t] = await db.select({ id: table.id }).from(table).where(and(eq(table.id, targetId), eq(table.projectId, projectId)));
     if (!t) throw new Error("对象不存在");
     const codes = new Set(a.groups.map((g) => g.code));
-    const valid = entries.filter((e) => e.caps && (e.subjectType === "user" || codes.has(e.subject))).map((e) => ({ ...e, caps: normCaps(e.caps!.filter((x) => (ALL_CAPS as string[]).includes(x))) }));
+    const valid = entries.filter((e) => e.caps && (e.subjectType === "user" || (codes.has(e.subject) && e.subject !== "SHARE"))).map((e) => ({ ...e, caps: normCaps(e.caps!.filter((x) => (ALL_CAPS as string[]).includes(x))) }));
     await db.delete(vdrPermissions).where(and(eq(vdrPermissions.targetType, targetType), eq(vdrPermissions.targetId, targetId)));
     if (valid.length)
       await db.insert(vdrPermissions).values(valid.map((e) => ({

@@ -287,12 +287,14 @@ export function CapsEditor({ value, inherit, onChange, allowInherit = true }: { 
   );
 }
 
-export function PermDialog({ projectId, target, folders, perms, members, groups, onClose }: {
+export function PermDialog({ projectId, target, folders, perms, members, groups: allGroups, onClose }: {
   projectId: string; target: { type: "folder" | "file"; id: string; name: string; folderId: string | null }; folders: VFolder[]; perms: VPerm[]; members: VMember[]; groups: VGroup[]; onClose: () => void;
 }) {
   const router = useRouter();
   const a = useAction();
   const own = perms.filter((p) => p.targetType === target.type && p.targetId === target.id);
+  // 外部分享组不参与按组授权（只能逐个文件分享给本人）
+  const groups = useMemo(() => allGroups.filter((g) => g.code !== "SHARE"), [allGroups]);
   const defaults = useMemo(() => Object.fromEntries(groups.map((g) => [g.code, g.defaultCaps])), [groups]);
   const [groupCaps, setGroupCaps] = useState<Record<string, VdrCap[] | null>>(Object.fromEntries(groups.map((g) => [g.code, own.find((p) => p.subjectType === "group" && p.subject === g.code)?.caps ?? null])));
   const [userCaps, setUserCaps] = useState<{ id: string; caps: VdrCap[]; expiresAt: string | null }[]>(own.filter((p) => p.subjectType === "user").map((p) => ({ id: p.subject, caps: p.caps, expiresAt: p.expiresAt })));

@@ -42,7 +42,8 @@ export async function saveGroup(projectId: string, g: GroupInput) {
     if (!/^[A-Z][A-Z0-9_]{1,11}$/.test(code)) throw new Error("组代码须为 2–12 位大写字母 / 数字，以字母开头");
     const name = g.name.trim();
     if (!name) throw new Error("请填写组名称");
-    const caps = normCaps(g.caps.filter((c) => ALL_CAPS.includes(c)));
+    // 外部分享组的默认权限固定为「不可见」：分享对象只能看到单独分享给本人的文件
+    const caps = code === "SHARE" ? [] : normCaps(g.caps.filter((c) => ALL_CAPS.includes(c)));
     const p = g.policy ?? {};
     const ipAllowlist = (p.ipAllowlist ?? []).map((s) => s.trim()).filter(Boolean);
     const bad = ipAllowlist.find((r) => !isValidIpRule(r));

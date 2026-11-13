@@ -1,6 +1,9 @@
 import type { VdrCap, VdrSecurity, VdrDownloadMode } from "@/db/schema";
 import { ALL_CAPS, normCaps } from "./caps";
 
+/** 外部分享专用组：只能看到单独分享给本人的文件 */
+export const SHARE_GROUP = "SHARE";
+
 /** 纯函数，服务端与浏览器（管理员“按权限组视角预览”）共用 */
 export type Viewer = { userId: string; isManager: boolean; group: string | null; organization: string | null };
 type FolderLike = { id: string; parentId: string | null; security?: VdrSecurity | null };
@@ -24,10 +27,11 @@ export function makeResolver<F extends FolderLike>(folders: F[], perms: PermLike
     if (!list) return null;
     const u = list.find((p) => p.subjectType === "user" && p.subject === viewer.userId);
     if (u) return u.caps;
-    const g = viewer.group ? list.find((p) => p.subjectType === "group" && p.subject === viewer.group) : undefined;
+    // 外部分享（SHARE）对象只认对其本人设置的规则，任何权限组规则都不适用
+    const g = viewer.group && viewer.group !== SHARE_GROUP ? list.find((p) => p.subjectType === "group" && p.subject === viewer.group) : undefined;
     return g ? g.caps : null;
   };
-  const dflt = () => (viewer.group ? groupDefaults[viewer.group] ?? [] : []);
+  const dflt = () => (viewer.group && viewer.group !== SHARE_GROUP ? groupDefaults[viewer.group] ?? [] : []);
   const cache = new Map<string, VdrCap[]>();
   const folderCaps = (id: string): VdrCap[] => {
     if (viewer.isManager) return ALL_CAPS;
