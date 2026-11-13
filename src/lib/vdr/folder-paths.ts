@@ -14,6 +14,9 @@ export async function vdrFolderPaths(projectId: string): Promise<FolderOpt[]> {
     .orderBy(asc(vdrFolders.sortOrder), asc(vdrFolders.name));
   const kids = new Map<string | null, typeof rows>();
   for (const r of rows) kids.set(r.parentId, [...(kids.get(r.parentId) ?? []), r]);
+  // 与 VDR 目录树一致：按名称排序，数字按数值比较
+  const coll = new Intl.Collator(["ja", "zh-CN", "en"], { numeric: true, sensitivity: "base" });
+  for (const list of kids.values()) list.sort((x, y) => coll.compare(x.name, y.name));
   const out: FolderOpt[] = [];
   const walk = (pid: string | null, prefix: string[], depth: number) => {
     for (const r of kids.get(pid) ?? []) {

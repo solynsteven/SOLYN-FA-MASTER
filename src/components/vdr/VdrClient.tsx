@@ -26,6 +26,10 @@ type Props = {
 
 const fileIcon = (f: VFile) => (f.preview === "pdf" || f.preview === "docx" ? FileText : f.preview === "xlsx" ? FileSpreadsheet : f.preview === "image" ? FileImage : FileIcon);
 
+/** 目录与文件按名称排序：数字按数值比较（2 排在 10 之前），兼容中日文与英文 */
+const nameCollator = new Intl.Collator(["ja", "zh-CN", "en"], { numeric: true, sensitivity: "base" });
+const byName = (a: string, b: string) => nameCollator.compare(a, b);
+
 export function VdrClient(p: Props) {
   const router = useRouter();
   const { canManage, projectId } = p;
@@ -64,7 +68,7 @@ export function VdrClient(p: Props) {
     return { folders, files, preview: true };
   }, [canManage, viewAs, p.folders, p.files, p.perms, defaults]);
 
-  const children = (pid: string | null) => view.folders.filter((f) => f.parentId === pid).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-CN"));
+  const children = (pid: string | null) => view.folders.filter((f) => f.parentId === pid).sort((a, b) => byName(a.name, b.name));
   const cur = view.folders.find((f) => f.id === current) ?? null;
   const phases = children(null);
   const path: VFolder[] = [];
@@ -72,7 +76,7 @@ export function VdrClient(p: Props) {
   const phase = path[0];
   const locked = !!phase?.locked && !canManage;
   const subFolders = cur && !locked ? children(cur.id) : [];
-  const curFiles = cur && !locked ? view.files.filter((f) => f.folderId === cur.id).sort((a, b) => a.name.localeCompare(b.name, "zh-CN", { numeric: true })) : [];
+  const curFiles = cur && !locked ? view.files.filter((f) => f.folderId === cur.id).sort((a, b) => byName(a.name, b.name)) : [];
   const countIn = (id: string): number => view.files.filter((f) => f.folderId === id).length + children(id).reduce((s, c) => s + countIn(c.id), 0);
 
   // 管理员：每行显示各权限组的生效级别
