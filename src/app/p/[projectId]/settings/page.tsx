@@ -83,7 +83,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
     const mods = await db.select().from(projectModules).where(eq(projectModules.projectId, projectId));
     body = <ModulesTab projectId={projectId} enabled={mods.filter((m) => m.enabled).map((m) => m.moduleKey)} />;
   } else {
-    body = <InfoTab projectId={projectId} p={{ code: project.code, name: project.name, clientName: project.clientName ?? "", dealType: project.dealType ?? "", description: project.description ?? "" }} />;
+    body = <InfoTab projectId={projectId} p={{ code: project.code, name: project.name, clientName: project.clientName ?? "", dealType: project.dealType ?? "", description: project.description ?? "", externalName: project.settings?.externalName ?? "", externalCode: project.settings?.externalCode ?? "" }} />;
   }
 
   return (

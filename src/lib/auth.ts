@@ -1,4 +1,5 @@
 import "server-only";
+import { externalProject, EXTERNAL_GROUP_KINDS } from "./project-mask";
 import { cache } from "react";
 import { redirect, notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
@@ -67,10 +68,10 @@ export const getProjectAccess = cache(async (projectId: string) => {
   let external = false;
   if (role === "member" && vdrGroup) {
     const [g] = await db.select({ kind: vdrGroups.kind }).from(vdrGroups).where(and(eq(vdrGroups.projectId, projectId), eq(vdrGroups.code, vdrGroup))).limit(1);
-    external = vdrGroup === "SHARE" || !!g && ["buyer", "advisor", "custom"].includes(g.kind);
+    external = vdrGroup === "SHARE" || (!!g && EXTERNAL_GROUP_KINDS.includes(g.kind));
     if (external) for (const k of [...enabled]) if (k !== "vdr" && k !== "qa") enabled.delete(k);
   }
-  return { user, project, role, canManage: role !== "member", enabledModules: enabled, external };
+  return { user, project: external ? externalProject(project) : project, role, canManage: role !== "member", enabledModules: enabled, external };
 });
 
 export async function requireProject(projectId: string, opts?: { manage?: boolean; module?: ModuleKey }) {

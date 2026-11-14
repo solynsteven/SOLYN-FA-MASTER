@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, projects, vdrFiles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { findInvitation, invitationState } from "@/lib/vdr/invites";
+import { findInvitation, invitationState, invitationProjectView } from "@/lib/vdr/invites";
 import { listGroups } from "@/lib/vdr/groups";
 import { AuthShell } from "../../AuthShell";
 import { InviteForms } from "./InviteForms";
@@ -27,7 +27,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     );
   }
   const [[p], me, [existing], groups] = await Promise.all([
-    db.select({ name: projects.name }).from(projects).where(eq(projects.id, inv.projectId)),
+    invitationProjectView(inv.projectId, inv.groupCode),
     getCurrentUser(),
     db.select({ id: users.id }).from(users).where(eq(users.email, inv.email)).limit(1),
     listGroups(inv.projectId),

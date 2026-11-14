@@ -1,7 +1,8 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { projects, projectMembers, users, fieldDefinitions, trackerItems, projectModules } from "@/db/schema";
+import { projects, projectMembers, users, fieldDefinitions, trackerItems, projectModules, vdrGroups } from "@/db/schema";
+import { externalProject, EXTERNAL_GROUP_KINDS } from "./project-mask";
 import type { User } from "@/db/schema";
 
 export async function listAccessibleProjects(user: User) {
@@ -10,12 +11,17 @@ export async function listAccessibleProjects(user: User) {
     return rows.map((p) => ({ ...p, myRole: "super_admin" as const }));
   }
   const rows = await db
-    .select({ p: projects, role: projectMembers.role })
+    .select({ p: projects, role: projectMembers.role, kind: vdrGroups.kind, group: projectMembers.vdrGroup })
     .from(projectMembers)
     .innerJoin(projects, eq(projects.id, projectMembers.projectId))
+    .leftJoin(vdrGroups, and(eq(vdrGroups.projectId, projectMembers.projectId), eq(vdrGroups.code, projectMembers.vdrGroup)))
     .where(eq(projectMembers.userId, user.id))
     .orderBy(desc(projects.updatedAt));
-  return rows.map((r) => ({ ...r.p, myRole: r.role }));
+  // 外部成员只看到对外显示名称 / 代号
+  return rows.map((r) => {
+    const ext = r.role === "member" && (r.group === "SHARE" || (!!r.kind && EXTERNAL_GROUP_KINDS.includes(r.kind)));
+    return { ...(ext ? externalProject(r.p) : r.p), myRole: r.role };
+  });
 }
 
 export async function listProjectMembers(projectId: string) {

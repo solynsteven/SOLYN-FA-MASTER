@@ -67,6 +67,9 @@ export async function getVdrSettings(projectId: string): Promise<VdrSettingsView
   };
 }
 
+/** 数据室 ID：只由项目内部 ID 生成，不含项目代号，避免对外泄露 */
+export const roomId = (projectId: string) => `VDR-${projectId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+
 export type WmCtx = { name: string; email: string; org: string | null; ip: string; projectName: string; projectCode: string; projectId: string; time?: Date };
 
 /** 水印文字（按项目设置的字段组合），在预览、打印与下载副本中一致 */
@@ -80,7 +83,7 @@ export function watermarkText(s: VdrSettingsView["watermark"], c: WmCtx) {
     else if (f === "org" && c.org) parts.push(c.org);
     else if (f === "time") parts.push(`${time} JST`);
     else if (f === "ip" && c.ip) parts.push(`IP ${c.ip}`);
-    else if (f === "room") parts.push(`VDR-${c.projectCode}-${c.projectId.slice(0, 6).toUpperCase()}`);
+    else if (f === "room") parts.push(roomId(c.projectId));
     else if (f === "project") parts.push(c.projectName);
     else if (f === "confidential") parts.push("商业机密");
   }
@@ -99,6 +102,6 @@ export function renderNda(tpl: string, c: { name: string; email: string; org: st
     .replace(/\{\{\s*机构\s*\}\}/g, c.org || "（未填写机构）")
     .replace(/\{\{\s*项目名\s*\}\}/g, c.projectName)
     .replace(/\{\{\s*项目代号\s*\}\}/g, c.projectCode)
-    .replace(/\{\{\s*数据室ID\s*\}\}/g, `VDR-${c.projectCode}-${c.projectId.slice(0, 6).toUpperCase()}`)
+    .replace(/\{\{\s*数据室ID\s*\}\}/g, roomId(c.projectId))
     .replace(/\{\{\s*日期\s*\}\}/g, date);
 }

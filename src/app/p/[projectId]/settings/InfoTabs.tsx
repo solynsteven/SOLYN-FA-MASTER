@@ -6,18 +6,26 @@ import { Alert, Toggle, useAction } from "@/components/ui";
 import { MODULES } from "@/lib/modules";
 import { updateProjectInfo, setProjectModules } from "./actions";
 
-export function InfoTab({ projectId, p }: { projectId: string; p: { code: string; name: string; clientName: string; dealType: string; description: string } }) {
+export function InfoTab({ projectId, p }: { projectId: string; p: { code: string; name: string; clientName: string; dealType: string; description: string; externalName: string; externalCode: string } }) {
   const router = useRouter();
   const [f, setF] = useState(p);
   const a = useAction();
   return (
     <div className="card max-w-2xl space-y-4 p-5">
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">项目代号（不可修改）</label><input className="input font-num" value={f.code} disabled /></div>
+        <div><label className="label">项目代号</label><input className="input font-num uppercase" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase() })} maxLength={32} /></div>
         <div><label className="label">项目名称</label><input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div>
         <div><label className="label">委托方 / 客户</label><input className="input" value={f.clientName} onChange={(e) => setF({ ...f, clientName: e.target.value })} /></div>
         <div><label className="label">交易类型</label><input className="input" value={f.dealType} onChange={(e) => setF({ ...f, dealType: e.target.value })} /></div>
         <div className="col-span-2"><label className="label">项目简介</label><textarea className="input min-h-[96px]" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></div>
+      </div>
+      <div className="rounded border border-line px-4 py-3">
+        <div className="text-sm text-brand-paper">对外显示（买方 / 顾问 / 外部分享对象看到的项目信息）</div>
+        <p className="mt-1 text-2xs leading-relaxed text-brand-sage">外部成员在项目列表、页面标题、邀请邮件、NDA 与水印中只会看到下面的名称与代号，看不到真实的项目名称、项目代号、委托方、交易类型与简介。留空时使用「Project Data Room」/「VDR」。建议使用交易代号，如「Project ORION」。</p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div><label className="label">对外显示名称</label><input className="input" value={f.externalName} maxLength={60} placeholder="Project Data Room" onChange={(e) => setF({ ...f, externalName: e.target.value })} /></div>
+          <div><label className="label">对外代号</label><input className="input font-num uppercase" value={f.externalCode} maxLength={32} placeholder="VDR" onChange={(e) => setF({ ...f, externalCode: e.target.value.toUpperCase() })} /></div>
+        </div>
       </div>
       <Alert>{a.error}</Alert>
       <Alert kind="success">{a.message}</Alert>

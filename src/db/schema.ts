@@ -84,7 +84,12 @@ export type FieldType =
 /** 字段语义角色：导出 PDF 报告、项目首页统计会按角色找到对应字段 */
 export type FieldConfig = { levelParents?: Record<string, string | null> };
 
-export type ProjectSettings = { faStartDate?: string | null };
+export type ProjectSettings = {
+  faStartDate?: string | null;
+  /** 外部成员（买方 / 顾问 / 外部分享）看到的项目名称与代号，避免泄露客户信息 */
+  externalName?: string | null;
+  externalCode?: string | null;
+};
 
 export type FieldRole = "code" | "title" | "category" | "priority" | "status" | "owner" | "due_date" | "start_date" | "progress" | "access" | null;
 

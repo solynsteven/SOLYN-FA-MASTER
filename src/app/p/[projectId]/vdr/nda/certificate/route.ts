@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { vdrNdaSignatures, users, projectMembers } from "@/db/schema";
 import { getProjectAccess } from "@/lib/auth";
 import { buildNdaPdf } from "@/lib/export/nda-pdf";
+import { roomId } from "@/lib/vdr/groups";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
   const [u] = await db.select().from(users).where(eq(users.id, sig.userId));
   const [m] = await db.select().from(projectMembers).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, sig.userId)));
   const buf = await buildNdaPdf({
-    projectName: a.project.name, projectCode: a.project.code, roomId: `VDR-${a.project.code}-${projectId.slice(0, 6).toUpperCase()}`,
+    projectName: a.project.name, projectCode: a.project.code, roomId: roomId(projectId),
     title: sig.title, version: sig.version, content: sig.content, contentHash: sig.contentHash, signedName: sig.signedName,
     userName: u?.name ?? sig.signedName, email: u?.email ?? "", organization: m?.organization ?? null, signedAt: sig.signedAt, ip: sig.ip, userAgent: sig.userAgent, signatureId: sig.id,
   });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus, Search, History, Upload, Download, Columns3, ArrowUp, ArrowDown, Trash2, X, FileSpreadsheet, FileText, Settings2,
@@ -125,11 +125,111 @@ export function TrackerClient(p: Props) {
   const rows = treeMode && collapsed.size ? view.filter((it) => !H.ancestors(H.codeOf(it)).some((a) => collapsed.has(a))) : view;
   const parentCodes = H.enabled ? items.map(H.codeOf).filter((c) => H.childrenOf(c).length) : [];
 
+  // DD：按「材料分类」分组显示，每组可折叠 / 展开（折叠状态按项目保存在本机浏览器）
+  const catF = p.moduleKey === "dd" ? fields.find((f) => f.role === "category") : undefined;
+  const grouped = !!catF;
+  const groupKeyStore = `solyn.ddgroups.${p.projectId}`;
+  const [groupCollapsed, setGroupCollapsedRaw] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try { const v = localStorage.getItem(groupKeyStore); if (v) setGroupCollapsedRaw(new Set(JSON.parse(v))); } catch {}
+  }, [groupKeyStore]);
+  const setGroupCollapsed = (n: Set<string>) => {
+    setGroupCollapsedRaw(n);
+    try { localStorage.setItem(groupKeyStore, JSON.stringify([...n])); } catch {}
+  };
+  const toggleGroup = (k: string) => { const n = new Set(groupCollapsed); if (n.has(k)) n.delete(k); else n.add(k); setGroupCollapsed(n); };
+  const groupList = useMemo(() => {
+    if (!catF) return [];
+    const m = new Map<string, TItem[]>();
+    for (const it of view) {
+      const k = String(it.data[catF.key] ?? "").trim() || "__none";
+      (m.get(k) ?? m.set(k, []).get(k)!).push(it);
+    }
+    const order = (k: string) => { const i = catF.options.indexOf(k); return i < 0 ? (k === "__none" ? 1e9 : 1e6) : i; };
+    const st = (it: TItem) => String((statusF && it.data[statusF.key]) ?? "");
+    return [...m.entries()]
+      .map(([key, list], first) => ({
+        key, label: key === "__none" ? "（未分类）" : key, items: list, first,
+        done: list.filter((it) => /已接收|受領済/.test(st(it))).length,
+        na: list.filter((it) => /不适用|該当なし/.test(st(it))).length,
+        overdue: list.filter((it) => overdueOf(it, dueF, statusF, today)).length,
+      }))
+      .sort((a, b) => order(a.key) - order(b.key) || a.first - b.first);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, catF, statusF, dueF, today]);
+
   const sum = useMemo(() => trackerSummary(fields, items, today), [fields, items, today]);
   const activeFilters = Object.values(filters).filter(Boolean).length + (onlyOverdue ? 1 : 0) + (onlyIssues ? 1 : 0) + (q ? 1 : 0);
   const toggleSort = (key: string) =>
     setSort((s) => (s?.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : null));
   const allChecked = view.length > 0 && view.every((i) => selected.has(i.id));
+
+  const renderRow = (it: TItem) => {
+                  const od = isOverdue(it);
+    const depth = H.enabled ? H.depthOf(it) : 1;
+    const code = H.codeOf(it);
+    const kids = H.enabled ? H.childrenOf(code).length : 0;
+    const issue = H.enabled ? H.issueOf(it) : null;
+    const roll = kids ? H.rollup(code) : null;
+    return (
+      <tr key={it.id} className={cn("group cursor-pointer hover:bg-ink-850/80", depth === 0 && "bg-ink-800/70 [&>td]:border-line-strong")} onClick={() => setOpen(it)}>
+        {canManage && (
+          <td className="td sticky left-0 bg-ink-900 group-hover:bg-ink-850" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              className="accent-[#3F6E58]"
+              checked={selected.has(it.id)}
+              onChange={() => setSelected((s) => { const n = new Set(s); if (n.has(it.id)) n.delete(it.id); else n.add(it.id); return n; })}
+            />
+          </td>
+        )}
+        {codeF ? (
+          <td
+            className={cn("td sticky z-[5] whitespace-nowrap font-num", depth === 0 ? "bg-[#152f25] group-hover:bg-ink-850" : "bg-ink-900 group-hover:bg-ink-850")}
+            style={{ left: canManage ? 40 : 0 }}
+          >
+            <span className="inline-flex items-center gap-1" style={{ paddingLeft: H.enabled ? depth * 14 : 0 }} title={issue ?? undefined}>
+              {H.enabled && (kids > 0 ? (
+                <button
+                  type="button"
+                  disabled={!treeMode}
+                  title={treeMode ? (collapsed.has(code) ? `展开 ${kids} 个下级任务` : `收起 ${kids} 个下级任务`) : "筛选或排序时显示全部任务"}
+                  onClick={(e) => { e.stopPropagation(); toggleCollapse(code); }}
+                  className="-ml-1 rounded p-0.5 text-brand-mist hover:bg-ink-700 hover:text-brand-paper disabled:opacity-40"
+                >
+                  {treeMode && collapsed.has(code) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                </button>
+              ) : <span className="inline-block w-[18px]" />)}
+              {issue && <AlertTriangle size={12} className="shrink-0 text-warn" />}
+              <span className={depth === 0 ? "font-medium text-brand-paper" : "text-brand-mist"}>{code || "—"}</span>
+              {kids > 0 && treeMode && collapsed.has(code) && <span className="rounded bg-ink-700 px-1 text-[10px] text-brand-sage">+{roll?.total ?? kids}</span>}
+            </span>
+          </td>
+        ) : (
+          <td className="td font-num text-xs text-brand-sage">{it.seq}</td>
+        )}
+        {cols.map((f) => (
+          <td key={f.key} className="td" style={{ maxWidth: f.width, minWidth: Math.min(f.width, 120) }}>
+            {inlineDate(f) ? (
+              <InlineDate
+                value={(it.data[f.key] as string) ?? ""}
+                onSave={(v) => inline.exec(() => updateItemAction(p.projectId, p.moduleKey, it.id, { [f.key]: v || null }), () => router.refresh())}
+              />
+            ) : (
+              <Cell f={f} v={it.data[f.key]} users={users} overdue={od && f.role === "due_date"} depth={depth} />
+            )}
+            {f.role === "title" && roll && roll.total > 0 && (
+              <div className="mt-1 text-[10px] text-brand-sage" style={{ paddingLeft: Math.max(0, depth - 1) * 14 + (depth >= 2 ? 18 : 0) }}>
+                下级 {roll.total} 项 · 已完成 {roll.done}{roll.excluded ? ` · 中止 ${roll.excluded}` : ""}
+                {collapsed.has(code) && treeMode && <span className="ml-1.5 text-brand-mist/70">（已折叠）</span>}
+              </div>
+            )}
+          </td>
+        ))}
+        <td className="td whitespace-nowrap font-num text-xs text-brand-sage">{fmtDateTime(it.updatedAt)}</td>
+      </tr>
+    );
+  };
 
   return (
     <VdrFoldersProvider value={folderCtx}>
@@ -196,6 +296,11 @@ export function TrackerClient(p: Props) {
           {activeFilters > 0 && (
             <button className="btn-ghost btn-sm" onClick={() => { setQ(""); setFilters({}); setOnlyOverdue(false); setOnlyIssues(false); }}>
               <X size={13} />清除筛选
+            </button>
+          )}
+          {grouped && groupList.length > 0 && (
+            <button className="btn-ghost btn-sm" onClick={() => setGroupCollapsed(groupCollapsed.size ? new Set() : new Set(groupList.map((g) => g.key)))}>
+              <ListTree size={13} />{groupCollapsed.size ? "全部展开" : "全部折叠"}
             </button>
           )}
           {H.enabled && (
@@ -290,72 +395,36 @@ export function TrackerClient(p: Props) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((it) => {
-                  const od = isOverdue(it);
-                  const depth = H.enabled ? H.depthOf(it) : 1;
-                  const code = H.codeOf(it);
-                  const kids = H.enabled ? H.childrenOf(code).length : 0;
-                  const issue = H.enabled ? H.issueOf(it) : null;
-                  const roll = kids ? H.rollup(code) : null;
-                  return (
-                    <tr key={it.id} className={cn("group cursor-pointer hover:bg-ink-850/80", depth === 0 && "bg-ink-800/70 [&>td]:border-line-strong")} onClick={() => setOpen(it)}>
-                      {canManage && (
-                        <td className="td sticky left-0 bg-ink-900 group-hover:bg-ink-850" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            className="accent-[#3F6E58]"
-                            checked={selected.has(it.id)}
-                            onChange={() => setSelected((s) => { const n = new Set(s); if (n.has(it.id)) n.delete(it.id); else n.add(it.id); return n; })}
-                          />
-                        </td>
-                      )}
-                      {codeF ? (
-                        <td
-                          className={cn("td sticky z-[5] whitespace-nowrap font-num", depth === 0 ? "bg-[#152f25] group-hover:bg-ink-850" : "bg-ink-900 group-hover:bg-ink-850")}
-                          style={{ left: canManage ? 40 : 0 }}
-                        >
-                          <span className="inline-flex items-center gap-1" style={{ paddingLeft: H.enabled ? depth * 14 : 0 }} title={issue ?? undefined}>
-                            {H.enabled && (kids > 0 ? (
-                              <button
-                                type="button"
-                                disabled={!treeMode}
-                                title={treeMode ? (collapsed.has(code) ? `展开 ${kids} 个下级任务` : `收起 ${kids} 个下级任务`) : "筛选或排序时显示全部任务"}
-                                onClick={(e) => { e.stopPropagation(); toggleCollapse(code); }}
-                                className="-ml-1 rounded p-0.5 text-brand-mist hover:bg-ink-700 hover:text-brand-paper disabled:opacity-40"
-                              >
-                                {treeMode && collapsed.has(code) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                              </button>
-                            ) : <span className="inline-block w-[18px]" />)}
-                            {issue && <AlertTriangle size={12} className="shrink-0 text-warn" />}
-                            <span className={depth === 0 ? "font-medium text-brand-paper" : "text-brand-mist"}>{code || "—"}</span>
-                            {kids > 0 && treeMode && collapsed.has(code) && <span className="rounded bg-ink-700 px-1 text-[10px] text-brand-sage">+{roll?.total ?? kids}</span>}
-                          </span>
-                        </td>
-                      ) : (
-                        <td className="td font-num text-xs text-brand-sage">{it.seq}</td>
-                      )}
-                      {cols.map((f) => (
-                        <td key={f.key} className="td" style={{ maxWidth: f.width, minWidth: Math.min(f.width, 120) }}>
-                          {inlineDate(f) ? (
-                            <InlineDate
-                              value={(it.data[f.key] as string) ?? ""}
-                              onSave={(v) => inline.exec(() => updateItemAction(p.projectId, p.moduleKey, it.id, { [f.key]: v || null }), () => router.refresh())}
-                            />
-                          ) : (
-                            <Cell f={f} v={it.data[f.key]} users={users} overdue={od && f.role === "due_date"} depth={depth} />
-                          )}
-                          {f.role === "title" && roll && roll.total > 0 && (
-                            <div className="mt-1 text-[10px] text-brand-sage" style={{ paddingLeft: Math.max(0, depth - 1) * 14 + (depth >= 2 ? 18 : 0) }}>
-                              下级 {roll.total} 项 · 已完成 {roll.done}{roll.excluded ? ` · 中止 ${roll.excluded}` : ""}
-                              {collapsed.has(code) && treeMode && <span className="ml-1.5 text-brand-mist/70">（已折叠）</span>}
-                            </div>
-                          )}
-                        </td>
-                      ))}
-                      <td className="td whitespace-nowrap font-num text-xs text-brand-sage">{fmtDateTime(it.updatedAt)}</td>
-                    </tr>
-                  );
-                })}
+                {grouped
+                  ? groupList.map((g) => {
+                      const closed = groupCollapsed.has(g.key);
+                      return (
+                        <Fragment key={g.key}>
+                          <tr className="cursor-pointer select-none bg-[#152f25] hover:bg-ink-850" onClick={() => toggleGroup(g.key)}>
+                            <td className="td sticky left-0 z-[6] border-line-strong bg-[#152f25]" colSpan={1}>
+                              {closed ? <ChevronRight size={15} className="text-brand-mist" /> : <ChevronDown size={15} className="text-brand-mist" />}
+                            </td>
+                            <td className="td border-line-strong" colSpan={cols.length + (canManage ? 1 : 0) + 1}>
+                              <span className="sticky left-12 inline-flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                                <span className="font-medium text-brand-paper">{g.label.split("\n")[0]}</span>
+                                {g.label.includes("\n") && <span className="text-xs text-brand-sage">{g.label.split("\n").slice(1).join(" ")}</span>}
+                                <span className="text-2xs text-brand-sage">
+                                  {g.items.length} 项{g.done ? ` · 已接收 ${g.done}` : ""}{g.na ? ` · 不适用 ${g.na}` : ""}{g.overdue ? ` · ` : ""}
+                                  {g.overdue ? <span className="text-danger">逾期 {g.overdue}</span> : null}
+                                </span>
+                                {g.items.length > 0 && (
+                                  <span className="inline-block h-1.5 w-24 overflow-hidden rounded-full bg-ink-700 align-middle" title={`完成度 ${Math.round(((g.done + g.na) / g.items.length) * 100)}%`}>
+                                    <span className="block h-full bg-brand-mid" style={{ width: `${((g.done + g.na) / g.items.length) * 100}%` }} />
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                          </tr>
+                          {!closed && g.items.map(renderRow)}
+                        </Fragment>
+                      );
+                    })
+                  : rows.map(renderRow)}
                 {view.length === 0 && (
                   <tr><td className="td py-10 text-center text-brand-sage" colSpan={cols.length + 3}>没有符合筛选条件的记录</td></tr>
                 )}
@@ -365,7 +434,7 @@ export function TrackerClient(p: Props) {
         )}
         {items.length > 0 && (
           <div className="flex items-center justify-between border-t border-line px-4 py-2 text-2xs text-brand-sage">
-            <span>显示 {rows.length} / {items.length} 条{codeF ? ` · 按${codeF.label}排序` : ""}{H.enabled && treeMode ? " · 点击编号前的箭头收起 / 展开下级任务" : ""}</span>
+            <span>显示 {rows.length} / {items.length} 条{codeF ? ` · 按${codeF.label}排序` : ""}{H.enabled && treeMode ? " · 点击编号前的箭头收起 / 展开下级任务" : ""}{grouped ? " · 按材料分类分组，点击分类行折叠 / 展开" : ""}</span>
             <span>点击任一行查看详情{canManage ? "与编辑" : ""}；每个字段的更新时间在详情中可见</span>
           </div>
         )}

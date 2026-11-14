@@ -18,13 +18,21 @@ const refresh = (id: string) => revalidatePath(`/p/${id}`, "layout");
 
 /* --------------------------- 基本信息 / 模块 --------------------------- */
 
-export async function updateProjectInfo(projectId: string, input: { name: string; clientName: string; dealType: string; description: string }) {
+export async function updateProjectInfo(projectId: string, input: { code: string; name: string; clientName: string; dealType: string; description: string; externalName: string; externalCode: string }) {
   return run(async () => {
     const a = await assertProject(projectId, true);
     if (!input.name.trim()) throw new Error("项目名称不能为空");
+    const code = input.code.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{1,32}$/.test(code)) throw new Error("项目代号仅限字母、数字、- 和 _（最多 32 位）");
+    const [dup] = await db.select({ id: projects.id }).from(projects).where(eq(projects.code, code));
+    if (dup && dup.id !== projectId) throw new Error(`项目代号「${code}」已被其他项目使用`);
+    const externalCode = input.externalCode.trim().toUpperCase();
+    if (externalCode && !/^[A-Z0-9_-]{1,32}$/.test(externalCode)) throw new Error("对外代号仅限字母、数字、- 和 _（最多 32 位）");
+    const [cur] = await db.select({ settings: projects.settings }).from(projects).where(eq(projects.id, projectId));
     await db.update(projects).set({
-      name: input.name.trim(), clientName: input.clientName.trim() || null, dealType: input.dealType.trim() || null,
+      code, name: input.name.trim(), clientName: input.clientName.trim() || null, dealType: input.dealType.trim() || null,
       description: input.description.trim() || null, updatedAt: new Date(),
+      settings: { ...(cur?.settings ?? {}), externalName: input.externalName.trim().slice(0, 60) || null, externalCode: externalCode || null },
     }).where(eq(projects.id, projectId));
     await audit(a.user.id, "project.update", input, projectId);
     refresh(projectId);

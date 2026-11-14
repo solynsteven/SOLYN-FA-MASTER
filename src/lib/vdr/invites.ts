@@ -7,6 +7,7 @@ import { vdrInvitations, vdrGroups, projectMembers, vdrPermissions, projects, ty
 import { sendMail, mailHtml } from "@/lib/mail";
 import { SHARE_DEFAULT_POLICY, listGroups } from "./groups";
 import { levelOf } from "./caps";
+import { externalProject, EXTERNAL_GROUP_KINDS } from "@/lib/project-mask";
 import { logVdr } from "./events";
 
 export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
@@ -25,6 +26,16 @@ export async function siteOrigin() {
     if (host) return `${proto}://${host}`;
   } catch {}
   return "http://localhost:3000";
+}
+
+/** 邀请邮件 / 邀请页中显示的项目信息：外部组（买方 / 顾问 / 自定义 / 外部分享）只显示对外名称 */
+export async function invitationProjectView(projectId: string, groupCode: string | null, groups?: { code: string; kind: string }[]) {
+  const [p] = await db.select().from(projects).where(eq(projects.id, projectId));
+  if (!p) return [];
+  const gs = groups ?? (await listGroups(projectId));
+  const kind = gs.find((g) => g.code === groupCode)?.kind;
+  const external = groupCode === "SHARE" || !groupCode || (!!kind && EXTERNAL_GROUP_KINDS.includes(kind));
+  return [external ? externalProject(p) : p];
 }
 
 /** 外部分享专用权限组（默认不可见，仅靠文件级用户规则开放单个文件） */
@@ -56,7 +67,7 @@ export async function createInvitation(i: {
     note: i.note ?? null, createdBy: i.actor.id,
   }).returning();
   const link = `${await siteOrigin()}/invite/${token}`;
-  const [p] = await db.select({ name: projects.name }).from(projects).where(eq(projects.id, i.projectId));
+  const [p] = await invitationProjectView(i.projectId, i.groupCode, groups);
   const r = await sendMail(email, `【SOLYN FA MASTER】邀请您访问「${p?.name ?? ""}」数据室`, mailHtml(
     `${i.actor.name} 邀请您访问数据室`,
     [
