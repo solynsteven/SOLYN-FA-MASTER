@@ -10,3 +10,5 @@ next-env.d.ts
 .DS_Store
 _to_delete
 .data/
+# Claude 生成的工作文件（含客户资料），不纳入代码仓库
+Claude outputs/
